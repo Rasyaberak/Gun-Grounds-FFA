@@ -78,6 +78,15 @@ end
 LoadingSequence()
 wait(1)
 
+-- Logs Tab
+local MainLogs = MakeTab({Name = "Logs"})
+AddParagraph(MainLogs, {"Made By RasyX"})
+AddParagraph(MainLogs, {"[ FEATURES ] AimBot ( NEW ),"})
+AddParagraph(MainLogs, {"21/09/2024", "Version 0.0.1"})
+wait(1)
+AddParagraph(MainLogs, {"There will probably be a script update, coming soon!! 👽"})
+wait(1)
+
 -- Function to animate the button
 local TweenService = game:GetService("TweenService")
 
@@ -204,14 +213,3 @@ local function aimAndShoot(config)
         wait(0.01)
     end
 end
-
--- Logs Tab
-local MainLogs = MakeTab({Name = "Logs"})
-AddParagraph(MainLogs, {"Made By RasyX"})
-AddParagraph(MainLogs, {"[ FEATURES ] AimBot ( NEW ),"})
-AddParagraph(MainLogs, {"21/09/2024", "Version 0.0.1"})
-wait(1)
-AddParagraph(MainLogs, {"There will probably be a script update, coming soon!! 👽"})
-
--- Start the loading sequence
-LoadingSequence()
