@@ -92,163 +92,94 @@ wait(1)
 local Paragraph = AddParagraph(Main, {"Script Only WallCheck No Team Check !", "Aim (Head, Torso) Small, Medium, Big - Esp Player Speed, Inf Jump"})
 wait(1)
 
--- Aimbot Script with ESP, Wall Hack, Auto Target, Smooth Aiming, and Highlight Target
+-- OP Aimbot Script: Instant Lock-On, Guaranteed Hit, Fast Shooting (Rapid Fire)
 
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local camera = game.Workspace.CurrentCamera
+local function startOPAimbot(config)
+    _G.config = config
 
--- Create ESP for players
-local function createESP(player)
-    if player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-        local highlight = Instance.new("Highlight")
-        highlight.Parent = player.Character
-        highlight.FillColor = Color3.new(1, 0, 0) -- Red color for the ESP
-        highlight.FillTransparency = 0.5 -- Semi-transparent
-        highlight.OutlineColor = Color3.new(1, 1, 1) -- White outline
+    local player = game.Players.LocalPlayer
+    local camera = game.Workspace.CurrentCamera
+    local targetPlayer = nil
+
+    -- Instant Aim at the target's position
+    local function instantAim(targetPos)
+        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
     end
-end
 
--- Remove ESP when player is removed
-local function removeESP(player)
-    if player.Character then
-        local highlight = player.Character:FindFirstChildOfClass("Highlight")
-        if highlight then
-            highlight:Destroy()
+    -- Auto Shoot the target directly with Rapid Fire
+    local function autoShoot(target)
+        if target then
+            local humanoid = target.Parent:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                humanoid:TakeDamage(100)  -- OP: High Damage Instantly
+            end
         end
     end
-end
 
--- Function to update ESP for all players
-local function updateESP()
-    for _, player in pairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            createESP(player)
+    -- Ensure target is hit even if there was a miss
+    local function ensureHit(target)
+        if target and target.Character and target.Character:FindFirstChild(config.TargetPart) then
+            local targetPos = target.Character[config.TargetPart].Position
+            instantAim(targetPos)
+            autoShoot(target)
         end
     end
-end
 
--- Event to handle player addition
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        createESP(player)
-    end)
-end)
+    -- Get the closest target player
+    local function getNearestTarget()
+        local closestDistance = math.huge
+        local closestPlayer = nil
 
--- Event to handle player removal
-Players.PlayerRemoving:Connect(function(player)
-    removeESP(player)
-end)
-
--- Initial ESP setup for existing players
-updateESP()
-
--- Aimbot functionality
-local aimbotEnabled = false -- Toggle state
-
-local function startAimbot(config)
-    while aimbotEnabled do
-        local targetPlayer = nil
-
-        -- Smooth aiming to assist in more realistic movement
-        local function smoothAim(targetPos, currentPos)
-            local smoothSpeed = config.Smoothness
-            return currentPos:Lerp(targetPos, smoothSpeed)
-        end
-
-        -- Function for auto shooting
-        local function autoShoot(target)
-            if target then
-                local humanoid = target.Parent:FindFirstChild("Humanoid")
-                if humanoid and humanoid.Health > 0 then
-                    humanoid:TakeDamage(10)  -- Example: Dealing damage
+        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild(config.TargetPart) then
+                local distance = (otherPlayer.Character[config.TargetPart].Position - player.Character.Head.Position).magnitude
+                if distance < closestDistance and (not config.TeamCheck or otherPlayer.Team ~= player.Team) then
+                    closestDistance = distance
+                    closestPlayer = otherPlayer
                 end
             end
         end
 
-        -- Highlight target function
-        local function highlightTarget(target)
-            if target and target.Character and target.Character:FindFirstChild(config.TargetPart) then
-                local part = target.Character[config.TargetPart]
-                part.BrickColor = BrickColor.new("Bright red") -- Highlight in red
-                wait(0.1) -- Short delay
-                part.BrickColor = BrickColor.new("White") -- Revert back
-            end
-        end
+        return closestPlayer
+    end
 
-        -- Line of Sight Check
-        local function hasLineOfSight(target)
-            local origin = camera.CFrame.Position
-            local direction = (target.Position - origin).unit * 500
-            local ray = Ray.new(origin, direction)
-            local hitPart, _ = game.Workspace:FindPartOnRay(ray, LocalPlayer.Character, false, true)
-            return hitPart == target
-        end
-
-        -- Auto-target nearest player
-        local function getNearestTarget()
-            local closestDistance = math.huge
-            local closestPlayer = nil
-
-            for _, otherPlayer in pairs(Players:GetPlayers()) do
-                if otherPlayer ~= LocalPlayer and otherPlayer.Character and otherPlayer.Character:FindFirstChild(config.TargetPart) then
-                    local distance = (otherPlayer.Character[config.TargetPart].Position - LocalPlayer.Character.Head.Position).magnitude
-                    if distance < closestDistance and (not config.TeamCheck or otherPlayer.Team ~= LocalPlayer.Team) then
-                        closestDistance = distance
-                        closestPlayer = otherPlayer
-                    end
-                end
-            end
-
-            return closestPlayer
-        end
-
-        -- Main aimbot loop
+    -- Main Aimbot Loop: Instant Lock-on, Shoot Fast, and Ensure Hit
+    while true do
         targetPlayer = getNearestTarget()
 
-        if targetPlayer and hasLineOfSight(targetPlayer.Character[config.TargetPart]) then
-            local aimPos = smoothAim(targetPlayer.Character[config.TargetPart].Position, camera.CFrame.Position)
-            camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)
+        if targetPlayer then
+            local targetPos = targetPlayer.Character[config.TargetPart].Position
 
-            local oldCameraPos = camera.CFrame
-            camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)
+            -- Instant lock-on with guaranteed hit
+            instantAim(targetPos)
+            autoShoot(targetPlayer)
 
-            autoShoot(targetPlayer.Character[config.TargetPart])
-            highlightTarget(targetPlayer)
-
-            camera.CFrame = oldCameraPos
+            -- Ensure hit correction if somehow missed
+            ensureHit(targetPlayer)
         end
 
-        wait(0.01) -- Short delay for optimization
+        wait(0.05)  -- Fast loop for rapid fire (reduce the wait time for faster shooting)
     end
 end
 
--- Toggle Aimbot Button
-AddToggle(Main, {
-    Name = "Aimbot",
-    Default = false,
-    Callback = function(state)
-        aimbotEnabled = state -- Update the toggle state
-        if state then
-            local config = {
-                Fov = 180,
-                MaxTransparency = 0.1,
-                Smoothness = 0.1,
-                TargetPart = "Head",
-                TeamCheck = false,
-                WallCheck = true,
-                MaxDistanceEnabled = false,
-                MaxDistance = 1500,
-                FovColor = Color3.fromRGB(102, 45, 145)
-            }
-
-            startAimbot(config) -- Start the aimbot loop when enabled
-        end
-    end,
-    Colors = {
-        On = Color3.new(0, 1, 0), -- Green for On
-        Off = Color3.new(1, 0, 0)  -- Red for Off
+-- Button to Activate OP Aimbot with Rapid Fire
+local function createOPAimbotButton()
+    local config = {
+        Fov = 360,  -- Full FOV, covers entire screen
+        TargetPart = "Head",  -- Instant headshots
+        TeamCheck = false,  -- Ignore team checks
+        MaxDistanceEnabled = false,  -- No distance limits
     }
+
+    startOPAimbot(config)
+end
+
+-- GUI Setup for Mobile/PC Activation
+AddButton(Main, {
+    Name = "Aimbot",
+    Callback = function()
+        createOPAimbotButton()
+    end
 })
 
 local Main = MakeTab({Name = "Esp Player"})
