@@ -222,8 +222,8 @@ AddButton(Main, {
             Smoothness = 0.1, -- Increase for smoother animation
             TargetPart = "Head",
             TeamCheck = false,
-            WallCheck = true,
-            MaxDistanceEnabled = false,
+            WallCheck = false,
+            MaxDistanceEnabled = true,
             MaxDistance = 1500,
             FovColor = Color3.fromRGB(102, 45, 145)
         }
