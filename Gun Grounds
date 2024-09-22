@@ -87,6 +87,9 @@ wait(1)
 AddParagraph(MainLogs, {"There will probably be a script update, coming soon!! 👽"})
 wait(1)
 
+local Main = MakeTab({Name = "Aim (Head)"})
+wait(1)
+
 -- Updated AimBot function with Auto-Reload feature
 local function aimAndShoot(config)
     _G.config = config
