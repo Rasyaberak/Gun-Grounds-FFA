@@ -216,7 +216,9 @@ local Settings = {
     Box_Thickness = 2,
     Team_Check = false,
     Team_Color = false,
-    Autothickness = true
+    Autothickness = true,
+    HealthBar = true, -- Health Bar ESP
+    HeadDot = true -- Head Dot ESP
 }
 
 --Locals
@@ -236,6 +238,25 @@ local function NewLine(color, thickness)
     return line
 end
 
+local function NewCircle(color, radius) -- Head Dot Function
+    local circle = Drawing.new("Circle")
+    circle.Visible = false
+    circle.Color = color
+    circle.Thickness = 1
+    circle.NumSides = 30
+    circle.Radius = radius
+    circle.Filled = true
+    return circle
+end
+
+local function NewBar(color) -- Health Bar Function
+    local bar = Drawing.new("Line")
+    bar.Visible = false
+    bar.Color = color
+    bar.Thickness = 2
+    return bar
+end
+
 local function Vis(lib, state)
     for i, v in pairs(lib) do
         v.Visible = state
@@ -248,8 +269,6 @@ local function Colorize(lib, color)
     end
 end
 
-local Black = Color3.fromRGB(0, 0, 0)
-
 local function Rainbow(lib, delay)
     for hue = 0, 1, 1/30 do
         local color = Color3.fromHSV(hue, 0.6, 1)
@@ -258,45 +277,51 @@ local function Rainbow(lib, delay)
     end
     Rainbow(lib)
 end
+
 --Main Draw Function
 local function Main(plr)
     repeat wait() until plr.Character ~= nil and plr.Character:FindFirstChild("Humanoid") ~= nil
-    local R15
-    if plr.Character.Humanoid.RigType == Enum.HumanoidRigType.R15 then
-        R15 = true
-    else 
-        R15 = false
-    end
+
     local Library = {
         TL1 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
         TL2 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
-
         TR1 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
         TR2 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
-
         BL1 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
         BL2 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
-
         BR1 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
         BR2 = NewLine(Settings.Box_Color, Settings.Box_Thickness)
     }
+
+    if Settings.HealthBar then
+        Library.HealthBar = NewBar(Color3.fromRGB(0, 255, 0))
+    end
+
+    if Settings.HeadDot then
+        Library.HeadDot = NewCircle(Color3.fromRGB(255, 255, 255), 5)
+    end
+
     coroutine.wrap(Rainbow)(Library, 0.15)
+
     local oripart = Instance.new("Part")
     oripart.Parent = Space
     oripart.Transparency = 1
     oripart.CanCollide = false
     oripart.Size = Vector3.new(1, 1, 1)
     oripart.Position = Vector3.new(0, 0, 0)
+
     --Updater Loop
     local function Updater()
         local c 
         c = game:GetService("RunService").RenderStepped:Connect(function()
-            if plr.Character ~= nil and plr.Character:FindFirstChild("Humanoid") ~= nil and plr.Character:FindFirstChild("HumanoidRootPart") ~= nil and plr.Character.Humanoid.Health > 0 and plr.Character:FindFirstChild("Head") ~= nil then
+            if plr.Character ~= nil and plr.Character:FindFirstChild("Humanoid") ~= nil and plr.Character:FindFirstChild("HumanoidRootPart") ~= nil and plr.Character.Humanoid.Health > 0 then
                 local Hum = plr.Character
                 local HumPos, vis = Camera:WorldToViewportPoint(Hum.HumanoidRootPart.Position)
+
                 if vis then
-                    oripart.Size = Vector3.new(Hum.HumanoidRootPart.Size.X, Hum.HumanoidRootPart.Size.Y*1.5, Hum.HumanoidRootPart.Size.Z)
+                    oripart.Size = Vector3.new(Hum.HumanoidRootPart.Size.X, Hum.HumanoidRootPart.Size.Y * 1.5, Hum.HumanoidRootPart.Size.Z)
                     oripart.CFrame = CFrame.new(Hum.HumanoidRootPart.CFrame.Position, Camera.CFrame.Position)
+
                     local SizeX = oripart.Size.X
                     local SizeY = oripart.Size.Y
                     local TL = Camera:WorldToViewportPoint((oripart.CFrame * CFrame.new(SizeX, SizeY, 0)).p)
@@ -316,8 +341,26 @@ local function Main(plr)
                         Colorize(Library, plr.TeamColor.Color)
                     end
 
+                    -- Health Bar
+                    if Settings.HealthBar then
+                        local healthRatio = Hum.Humanoid.Health / Hum.Humanoid.MaxHealth
+                        local BarStart = Camera:WorldToViewportPoint(Hum.HumanoidRootPart.Position - Vector3.new(2, 3, 0))
+                        local BarEnd = Camera:WorldToViewportPoint(Hum.HumanoidRootPart.Position - Vector3.new(2, 3 + 5 * healthRatio, 0))
+                        Library.HealthBar.From = Vector2.new(BarStart.X, BarStart.Y)
+                        Library.HealthBar.To = Vector2.new(BarEnd.X, BarEnd.Y)
+                        Library.HealthBar.Visible = true
+                    end
+
+                    -- Head Dot
+                    if Settings.HeadDot and Hum:FindFirstChild("Head") then
+                        local headPos = Camera:WorldToViewportPoint(Hum.Head.Position)
+                        Library.HeadDot.Position = Vector2.new(headPos.X, headPos.Y)
+                        Library.HeadDot.Visible = true
+                    end
+
+                    -- Auto thickness and visibility
                     local ratio = (Camera.CFrame.p - Hum.HumanoidRootPart.Position).magnitude
-                    local offset = math.clamp(1/ratio*750, 2, 300)
+                    local offset = math.clamp(1/ratio * 750, 2, 300)
 
                     Library.TL1.From = Vector2.new(TL.X, TL.Y)
                     Library.TL1.To = Vector2.new(TL.X + offset, TL.Y)
@@ -343,7 +386,7 @@ local function Main(plr)
 
                     if Settings.Autothickness then
                         local distance = (Player.Character.HumanoidRootPart.Position - oripart.Position).magnitude
-                        local value = math.clamp(1/distance*100, 1, 4) --0.1 is min thickness, 6 is max
+                        local value = math.clamp(1/distance * 100, 1, 4)
                         for u, x in pairs(Library) do
                             x.Thickness = value
                         end
@@ -368,12 +411,17 @@ local function Main(plr)
         end)
     end
     coroutine.wrap(Updater)()
+
+    -- Auto-Refresh on Respawn
+    plr.CharacterAdded:Connect(function()
+        coroutine.wrap(Main)(plr)
+    end)
 end
 
 -- Draw Boxes
 for i, v in pairs(game:GetService("Players"):GetPlayers()) do
     if v.Name ~= Player.Name then
-      coroutine.wrap(Main)(v)
+        coroutine.wrap(Main)(v)
     end
 end
 
