@@ -206,14 +206,14 @@ AddButton(Main, {
         TargetPart = "Head",
         TeamCheck = false,
         WallCheck = true, -- Wall Hack
-        MaxDistanceEnabled = false,
+        MaxDistanceEnabled = true,
         MaxDistance = 1500,
         FovColor = Color3.fromRGB(102, 45, 145),
         AimAdjustFactor = 0.5, -- Factor for auto-aim adjustments
         ShootBurst = 3, -- Number of shots in speed shoot
         ShootDelay = 0.1, -- Delay between shots in speed shoot
-        SpeedHackEnabled = true, -- Enable speed hack
-        SpeedHackSpeed = 250 -- Speed hack speed value
+        SpeedHackEnabled = false, -- Enable speed hack
+        SpeedHackSpeed = 20 -- Speed hack speed value
     }
 
     -- Wall Hack logic
