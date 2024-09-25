@@ -257,7 +257,7 @@ AddButton(Main, {
 })
 
 AddButton(Main, {
-    Name = "Esp Highlight",
+    Name = "ESP Highlight",
     Callback = function()
         local DepthMode = "AlwaysOnTop"
         local FillTransparency = 0.4
@@ -313,8 +313,15 @@ AddButton(Main, {
             -- Set initial Adornee to the player's character
             UpdateAdornee(plr.Character)
 
+            -- Send feedback to the player when highlighted
+            plr:SendNotification("You are highlighted!", "You are being tracked!", 5) -- Customize notification duration
+
             -- Update Adornee on character respawn
-            connections[plr] = plr.CharacterAdded:Connect(UpdateAdornee)
+            connections[plr] = plr.CharacterAdded:Connect(function(char)
+                UpdateAdornee(char)
+                -- Immediately apply highlight when player respawns
+                Highlight.Adornee = char:FindFirstChild("HumanoidRootPart")
+            end)
         end
 
         -- Function to monitor distance and update highlights
@@ -347,6 +354,13 @@ AddButton(Main, {
                 connections[plr]:Disconnect()
                 connections[plr] = nil
             end
+        end)
+
+        -- Ensure highlights are applied immediately when a player respawns
+        Players.PlayerAdded:Connect(function(plr)
+            plr.CharacterAdded:Connect(function()
+                CreateHighlight(plr)
+            end)
         end)
     end
 })
