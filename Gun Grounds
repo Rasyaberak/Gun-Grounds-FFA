@@ -104,39 +104,18 @@ local function aimAndShoot(config)
         return currentPos:Lerp(targetPos, smoothSpeed)
     end
 
-    -- Visual feedback for hits and misses
-    local function visualFeedback(target, isHit)
-        if target and target.Character and target.Character:FindFirstChild(config.TargetPart) then
-            local part = target.Character[config.TargetPart]
-            if isHit then
-                part.BrickColor = BrickColor.new("Bright green") -- Color for hit
-                wait(0.1)
-                part.BrickColor = BrickColor.new("White") -- Revert color after a short delay
-            else
-                part.BrickColor = BrickColor.new("Bright red") -- Color for miss
-                wait(0.1)
-                part.BrickColor = BrickColor.new("White") -- Revert color after a short delay
-            end
-        end
-    end
+    -- Visual Effects on Hit
+    local function createHitEffect(position)
+        local effect = Instance.new("ParticleEmitter")
+        effect.Color = Color3.fromRGB(255, 0, 0)
+        effect.Lifetime = NumberRange.new(0.5)
+        effect.Rate = 50
+        effect.Size = NumberSequence.new(0.5)
+        effect.Speed = NumberRange.new(5)
+        effect.Parent = game.Workspace:FindPartOnRay(Ray.new(position, Vector3.new(0, 1, 0)), player.Character) -- Change according to your needs
 
-    -- Silent aim: Modifies the camera position without visibly moving it
-    local function silentAim(targetPos)
-        local oldPos = camera.CFrame
-        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
-        return oldPos
-    end
-
-    -- Aim prediction function for moving targets
-    local function predictTarget(target)
-        if target and target.Character and target.Character:FindFirstChild("HumanoidRootPart") then
-            local targetPos = target.Character.HumanoidRootPart.Position
-            local targetVelocity = target.Character.HumanoidRootPart.Velocity
-            local predictionTime = 0.1 -- Time to predict ahead
-            local predictedPos = targetPos + (targetVelocity * predictionTime)
-            return predictedPos
-        end
-        return nil
+        wait(1)
+        effect:Destroy() -- Clean up after use
     end
 
     -- Auto-shoot function (for mobile)
@@ -144,23 +123,22 @@ local function aimAndShoot(config)
         if target then
             local humanoid = target.Parent:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                humanoid:TakeDamage(10)  -- Example of dealing damage directly
-                visualFeedback(target, true) -- Indicate hit
-            else
-                visualFeedback(target, false) -- Indicate miss
+                -- Raycasting to check if hit
+                local rayOrigin = camera.CFrame.Position
+                local rayDirection = (target.Position - rayOrigin).unit * 500
+                local ray = Ray.new(rayOrigin, rayDirection)
+                local hitPart, hitPosition = game.Workspace:FindPartOnRay(ray, player.Character, false, true)
+
+                if hitPart and hitPart:IsDescendantOf(target.Parent) then
+                    humanoid:TakeDamage(10)  -- Example of dealing damage directly
+                    createHitEffect(hitPosition) -- Create hit effect
+                end
             end
         end
     end
 
-    -- Line of Sight check function (70. Line of Sight)
-    local function checkLineOfSight(target)
-        local ray = Ray.new(camera.CFrame.Position, (target.Position - camera.CFrame.Position).unit * 500)
-        local hit, position = game.Workspace:FindPartOnRay(ray, player.Character, false, true)
-        return hit == target
-    end
-
-    -- Auto target nearest player (83. Auto Target)
-    local function findNearestTarget()
+    -- Target Selection function
+    local function targetSelection()
         local closestDistance = math.huge
         local closestPlayer = nil
 
@@ -177,32 +155,60 @@ local function aimAndShoot(config)
         return closestPlayer
     end
 
-    -- Dynamic FOV Adjustment (180 degrees)
-    local function adjustFOV()
-        camera.FieldOfView = 180
+    -- Speed Shoot function
+    local function speedShoot(target)
+        if target then
+            -- Execute auto shoot with increased frequency
+            for i = 1, config.ShootBurst do
+                autoShoot(target)
+                wait(config.ShootDelay)
+            end
+        end
+    end
+
+    -- Highlight target function for visual feedback
+    local function highlightTarget(target)
+        if target and target.Character and target.Character:FindFirstChild(config.TargetPart) then
+            local part = target.Character[config.TargetPart]
+            part.BrickColor = BrickColor.new("Bright red") -- Change color to indicate hit
+            wait(0.1)
+            part.BrickColor = BrickColor.new("White") -- Revert color after a short delay
+        end
+    end
+
+    -- Line of Sight check function
+    local function checkLineOfSight(target)
+        local ray = Ray.new(camera.CFrame.Position, (target.Position - camera.CFrame.Position).unit * 500)
+        local hit, position = game.Workspace:FindPartOnRay(ray, player.Character, false, true)
+        return hit == target
     end
 
     -- Main aim loop
     while true do
-        adjustFOV()  -- Adjust FOV dynamically
+        targetPlayer = targetSelection() -- Target Selection
 
-        targetPlayer = findNearestTarget() -- (83. Auto Target)
+        if targetPlayer and checkLineOfSight(targetPlayer.Character[config.TargetPart]) then
+            -- Smooth aim towards the target
+            local aimPos = smoothAim(targetPlayer.Character[config.TargetPart].Position, camera.CFrame.Position)
+            camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)
 
-        if targetPlayer and checkLineOfSight(targetPlayer.Character[config.TargetPart]) then  -- (70. Line of Sight)
-            -- Predict target position
-            local predictedPos = predictTarget(targetPlayer)
+            -- Auto-aim adjustments: Adjust aiming based on target's movement
+            local targetVelocity = targetPlayer.Character[config.TargetPart].Velocity
+            if targetVelocity.magnitude > 0 then
+                aimPos = aimPos + targetVelocity * config.AimAdjustFactor
+            end
 
-            -- Smooth aim towards the predicted target position (71. Aiming Assistant)
-            local aimPos = smoothAim(predictedPos, camera.CFrame.Position)
+            -- Speed Hack Integration (optional)
+            if config.SpeedHackEnabled then
+                player.Character.Humanoid.WalkSpeed = config.SpeedHackSpeed
+            end
 
-            -- Silent aim: Temporarily set camera position to aim
-            local oldPos = silentAim(aimPos)
-
-            -- Auto-shoot and highlight target (31. Target Highlight)
-            autoShoot(targetPlayer.Character[config.TargetPart])
+            -- Speed shoot and highlight target
+            speedShoot(targetPlayer.Character[config.TargetPart]) -- Speed Shoot
+            highlightTarget(targetPlayer)
 
             -- Restore camera position
-            camera.CFrame = oldPos
+            camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)
         end
 
         wait(0.01) -- Add a short delay for optimization
@@ -216,24 +222,29 @@ AddButton(Main, {
     local config = {
         Fov = 360,
         MaxTransparency = 0.1,
-        Smoothness = 0.1, -- Increase for smoother animation (71. Aiming Assistant)
+        Smoothness = 0.1, -- Increase for smoother animation
         TargetPart = "Head",
         TeamCheck = false,
-        WallCheck = true, -- (32. Wall Hack)
+        WallCheck = true, -- Wall Hack
         MaxDistanceEnabled = false,
         MaxDistance = 1500,
-        FovColor = Color3.fromRGB(102, 45, 145)
+        FovColor = Color3.fromRGB(102, 45, 145),
+        AimAdjustFactor = 0.5, -- Factor for auto-aim adjustments
+        ShootBurst = 3, -- Number of shots in speed shoot
+        ShootDelay = 0.1, -- Delay between shots in speed shoot
+        SpeedHackEnabled = true, -- Enable speed hack
+        SpeedHackSpeed = 10 -- Speed hack speed value
     }
 
-    -- Wall Hack logic (32. Wall Hack)
+    -- Wall Hack logic
     if config.WallCheck then
         config.IgnoreWalls = true
     end
-     wait(0.1)
+    
+    wait(0.1)
         l:Notify("Script Load!", "AimBot", 3)
 
-    -- Call the aim and shoot function with the enhanced aim precision (90. Aim Master)
+    -- Call the aim and shoot function with the enhanced aim precision
     aimAndShoot(config)
   end
 })
-
