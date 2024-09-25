@@ -140,7 +140,7 @@ local function aimAndShoot(config)
     end
 end
 
-local Toggle2 = MainTab:CreateToggle({
+local Toggle1 = MainTab:CreateToggle({
     Name = "ESP",
     CurrentValue = false,
     Flag = "Toggle_ESP", -- Unique flag for ESP
