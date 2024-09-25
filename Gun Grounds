@@ -87,96 +87,107 @@ wait(1)
 AddParagraph(MainLogs, {"There will probably be a script update, coming soon!! 👽"})
 wait(1)
 
-local Main = MakeTab({Name = "Main"})
+local Main = MakeTab({Name = "Aim (Head)"})
 wait(1)
 
+-- Updated AimBot function with Auto-Reload feature
 local function aimAndShoot(config)
     _G.config = config
 
     local player = game.Players.LocalPlayer
     local camera = game.Workspace.CurrentCamera
+    local targetPlayer = nil
+    local maxAmmo = 10  -- Maximum ammo per magazine
+    local currentAmmo = maxAmmo  -- Current ammo in the magazine
+    local reloadTime = 2  -- Time in seconds to reload
 
-    -- Predict position for moving targets
-    local function predictPosition(target)
-        local targetPart = target.Character[config.TargetPart]
-        local targetVelocity = target.Character.HumanoidRootPart.Velocity
-        local predictionTime = (targetPart.Position - camera.CFrame.Position).magnitude / config.ProjectileSpeed
-        return targetPart.Position + targetVelocity * predictionTime
-    end
-
-    -- Aim assist with custom strength
-    local function aimAssist(targetPos, currentPos)
-        local aimStrength = config.AimAssistStrength
-        return currentPos:Lerp(targetPos, aimStrength)
-    end
-
-    -- Random smoothness for anti-detection
-    local function randomSmoothAim(targetPos, currentPos)
-        local smoothSpeed = config.Smoothness + math.random() * config.SmoothnessVariation
+    -- Smooth aim function with animation
+    local function smoothAim(targetPos, currentPos)
+        local smoothSpeed = config.Smoothness
         return currentPos:Lerp(targetPos, smoothSpeed)
     end
 
-    -- Get the closest target
-    local function getClosestTarget()
-        local closestPlayer = nil
-        local shortestDistance = math.huge
-
-        for _, playerInstance in pairs(game.Players:GetPlayers()) do
-            if playerInstance ~= player and playerInstance.Character and playerInstance.Character:FindFirstChild(config.TargetPart) then
-                local targetPos = playerInstance.Character[config.TargetPart].Position
-                local distance = (targetPos - player.Character.Head.Position).magnitude
-                if distance < shortestDistance then
-                    closestPlayer = playerInstance
-                    shortestDistance = distance
-                end
-            end
-        end
-        return closestPlayer
-    end
-
-    -- Highlight target when hit
-    local function highlightTarget(target)
-        target.Character.Head.Color = Color3.fromRGB(255, 255, 255) -- Change target color to white on hit
-        wait(0.1)
-        target.Character.Head.Color = Color3.fromRGB(255, 0, 0) -- Reset color to red after a moment
-    end
-
-    -- Auto-reload function
-    local function autoReload()
-        local tool = player.Backpack:FindFirstChildOfClass("Tool")
-        if tool and tool:FindFirstChild("Ammo") then
-            if tool.Ammo.Value <= 0 then
-                tool:Activate() -- Reload if ammo is depleted
-                wait(1) -- Wait for reload
-            end
-        end
-    end
-
-    -- Auto-shoot function
+    -- Auto-shoot function (for mobile)
     local function autoShoot(target)
-        if target then
+        if target and currentAmmo > 0 then
             local humanoid = target.Parent:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                autoReload() -- Check and perform auto-reload
-                humanoid:TakeDamage(10) -- Deal damage
-                highlightTarget(target) -- Highlight target hit
+                humanoid:TakeDamage(600)  -- Example of dealing damage directly
+                currentAmmo = currentAmmo - 1  -- Decrease ammo count after each shot
             end
+        end
+    end
+
+    -- Reload function
+    local function reload()
+        if currentAmmo <= 0 then
+            
+            wait(reloadTime)  -- Simulate reload time
+            currentAmmo = maxAmmo  -- Reset ammo after reload
+        end
+    end
+
+    -- Feature 90: Aim Master (combines all previous aim features for ultimate precision)
+    local function aimMaster(targetPos, currentPos)
+        local aimPos = smoothAim(targetPos, currentPos)
+        camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)  -- Apply smooth aim to target
+    end
+
+    -- Highlight target function for visual feedback
+    local function highlightTarget(target)
+        if target and target.Character and target.Character:FindFirstChild(config.TargetPart) then
+            local head = target.Character[config.TargetPart]
+            head.BrickColor = BrickColor.new("Bright red") -- Change color to indicate hit
+            wait(0.1)
+            head.BrickColor = BrickColor.new("White") -- Revert color after a short delay
         end
     end
 
     -- Main aim loop
     while true do
-        local closestTarget = getClosestTarget()
+        -- Find closest player to aim at
+        targetPlayer = nil
+        local closestDistance = math.huge
 
-        if closestTarget and closestTarget.Character and closestTarget.Character:FindFirstChild(config.TargetPart) then
-            local targetPos = closestTarget.Character[config.TargetPart].Position
-            local predictedPos = predictPosition(closestTarget) -- Predict target position
-            local aimPos = randomSmoothAim(predictedPos, camera.CFrame.Position) -- Aim with random smoothness
-            camera.CFrame = CFrame.new(camera.CFrame.Position, aimAssist(aimPos, camera.CFrame.Position)) -- Aim assist
-            autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot
+        for _, playerInstance in pairs(game.Players:GetPlayers()) do
+            if playerInstance ~= player and playerInstance.Character and playerInstance.Character:FindFirstChild(config.TargetPart) then
+                local targetPos = playerInstance.Character[config.TargetPart].Position
+                local screenPos = camera:WorldToScreenPoint(targetPos)
+
+                -- Check if target is within the FOV
+                local fovRadius = config.Fov / 2
+                local distance = (targetPos - player.Character.Head.Position).magnitude
+                if (Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2) - Vector2.new(screenPos.X, screenPos.Y)).magnitude < fovRadius and distance < closestDistance then
+                    closestDistance = distance
+                    targetPlayer = playerInstance
+                end
+            end
         end
 
-        wait(0.01) -- Delay for optimization
+        if targetPlayer then
+            local targetPos = targetPlayer.Character[config.TargetPart].Position
+            
+            -- Feature 90: Aim Master
+            aimMaster(targetPos, camera.CFrame.Position)
+
+            -- Silent aim: Temporarily set camera position to aim
+            local oldPos = camera.CFrame
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
+            
+            -- Auto-shoot and highlight target
+            autoShoot(targetPlayer.Character[config.TargetPart])
+            highlightTarget(targetPlayer)
+            
+            -- Restore camera position
+            camera.CFrame = oldPos
+
+            -- Check for reload if ammo is out
+            if currentAmmo <= 0 then
+                reload()  -- Automatically reload if ammo is 0
+            end
+        end
+
+        wait(0.01)  -- Add a short delay for optimization
     end
 end
 
@@ -187,22 +198,19 @@ AddButton(Main, {
         local config = {
             Fov = 180,
             MaxTransparency = 0.1,
-            Smoothness = 0.1, -- For smoother aim
-            SmoothnessVariation = 0.05, -- Random smoothness variation
-            AimAssistStrength = 0.5, -- Aim assist strength
+            Smoothness = 0.1, -- Increase for smoother animation
             TargetPart = "Head",
             TeamCheck = false,
             WallCheck = true,
             MaxDistanceEnabled = false,
             MaxDistance = 1500,
-            FovColor = Color3.fromRGB(102, 45, 145),
-            ProjectileSpeed = 1000 -- Projectile speed for target prediction
+            FovColor = Color3.fromRGB(102, 45, 145)
         }
 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
         wait(0.1)
-        l:Notify("Script Loaded!", "AimBot Active", 3)
+        l:Notify("Script Load!", "Aim Small", 3)
 
-        aimAndShoot(config) -- Call the aim and shoot function with configuration
+        aimAndShoot(config) -- Call the aim and shoot function with updated features
     end
 })
