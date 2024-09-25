@@ -96,8 +96,33 @@ local function aimAndShoot(config)
     local player = game.Players.LocalPlayer
     local camera = game.Workspace.CurrentCamera
     local targetPlayer = nil
+    local lastMissed = false
 
-    -- Prediksi untuk target yang bergerak
+    -- Highlight target for visibility
+    local function highlightTarget(target)
+        if config.HighlightTarget and target.Character then
+            for _, part in pairs(target.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = config.TargetTransparency
+                    part.BrickColor = BrickColor.new(config.HighlightColor)
+                end
+            end
+        end
+    end
+
+    -- Remove highlight when target is lost
+    local function removeHighlight(target)
+        if config.HighlightTarget and target and target.Character then
+            for _, part in pairs(target.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0 -- Reset transparency
+                    part.BrickColor = BrickColor.new("White") -- Reset color
+                end
+            end
+        end
+    end
+
+    -- Predict the position for a moving target (includes handling for fidgety players)
     local function predictPosition(target)
         local targetPart = target.Character[config.TargetPart]
         local targetVelocity = target.Character.HumanoidRootPart.Velocity
@@ -105,42 +130,37 @@ local function aimAndShoot(config)
         return targetPart.Position + targetVelocity * predictionTime
     end
 
-    -- Cek apakah target terlihat (line of sight check)
-    local function isTargetVisible(target)
+    -- Check if the target is visible or behind a wall
+    local function isTargetVisibleOrBehindWall(target)
         local targetPosition = target.Character[config.TargetPart].Position
         local ray = Ray.new(camera.CFrame.Position, (targetPosition - camera.CFrame.Position).unit * 100)
         local hit, position = game.Workspace:FindPartOnRay(ray, player.Character)
+
+        -- Allow wall penetration if WallPenetration is enabled
+        if hit and not hit:IsDescendantOf(target.Character) and config.WallPenetration then
+            return true
+        end
+
         return hit == nil or hit:IsDescendantOf(target.Character)
     end
 
-    -- Wall Hack and Target Highlight
-    local function highlightTarget(target)
-        if config.WallHack then
-            -- Make walls transparent
-            for _, part in pairs(game.Workspace:GetDescendants()) do
-                if part:IsA("BasePart") and not part:IsDescendantOf(target.Character) then
-                    part.Transparency = config.MaxTransparency
-                end
-            end
-        end
-        
-        -- Highlight target
-        if config.HighlightTarget then
-            local targetPart = target.Character[config.TargetPart]
-            if targetPart then
-                targetPart.Transparency = config.TargetTransparency
-                local highlight = Instance.new("SelectionBox", targetPart)
-                highlight.Adornee = targetPart
-                highlight.Color3 = config.HighlightColor
-                highlight.LineThickness = 0.05
-            end
+    -- Auto-correct the aim if the target is missed
+    local function autoCorrectAim(target)
+        if lastMissed then
+            local targetPos = target.Character[config.TargetPart].Position
+            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
+            lastMissed = false
         end
     end
 
-    -- Aim assist with custom strength
+    -- Aim assist with custom strength and aim correction after a miss
     local function aimAssist(targetPos, currentPos)
         local aimStrength = config.AimAssistStrength
-        return currentPos:Lerp(targetPos, aimStrength)
+        if lastMissed then
+            return targetPos
+        else
+            return currentPos:Lerp(targetPos, aimStrength)
+        end
     end
 
     -- Auto-reload function
@@ -148,64 +168,53 @@ local function aimAndShoot(config)
         local tool = player.Backpack:FindFirstChildOfClass("Tool")
         if tool and tool:FindFirstChild("Ammo") then
             if tool.Ammo.Value <= 0 then
-                tool:Activate() -- Reload automatically if ammo is out
-                wait(1) -- Wait a moment to reload
+                tool:Activate() -- Automatically reload if out of ammo
+                wait(1) -- Wait for reload
             end
         end
     end
 
-    -- Auto-shoot function
+    -- Auto-shoot function with higher damage
     local function autoShoot(target)
         if target then
             local humanoid = target.Parent:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
                 autoReload() -- Auto-reload if needed
-                humanoid:TakeDamage(1000) -- Apply damage
+                humanoid:TakeDamage(50) -- Increase the damage per shot
+
+                local ray = Ray.new(camera.CFrame.Position, (target.Character[config.TargetPart].Position - camera.CFrame.Position).unit * 100)
+                local hit, position = game.Workspace:FindPartOnRay(ray, player.Character)
+                if hit ~= nil and not hit:IsDescendantOf(target.Character) then
+                    lastMissed = true -- Mark that the shot missed
+                else
+                    lastMissed = false -- No miss, aim was correct
+                end
             end
-        end
-    end
-
-    -- Fake Lag Simulation
-    local function simulateFakeLag()
-        if config.FakeLag then
-            wait(config.FakeLagAmount) -- Delay to simulate fake lag
-        end
-    end
-
-    -- Line of Sight function (draw line from player to target)
-    local function drawLineToTarget(target)
-        if config.LineOfSight then
-            local beam = Instance.new("Beam", camera)
-            local startPos = Instance.new("Attachment", camera)
-            local endPos = Instance.new("Attachment", target.Character[config.TargetPart])
-            beam.Attachment0 = startPos
-            beam.Attachment1 = endPos
-            beam.Color = ColorSequence.new(config.LineColor)
-            beam.Width0 = 0.05
-            beam.Width1 = 0.05
         end
     end
 
     -- Main aim loop
     while true do
-        -- Find the closest and valid target
         local closestTarget = getClosestTarget()
 
         if closestTarget and closestTarget.Character and closestTarget.Character:FindFirstChild(config.TargetPart) then
-            if isTargetVisible(closestTarget) then -- Check if the target is visible
-                local targetPos = closestTarget.Character[config.TargetPart].Position
+            if isTargetVisibleOrBehindWall(closestTarget) then
+                highlightTarget(closestTarget) -- Highlight target
+                local targetPos = predictPosition(closestTarget) -- Predict target's position
+                autoCorrectAim(closestTarget) -- Auto-correct aim if needed
+
                 local aimPos = aimAssist(targetPos, camera.CFrame.Position) -- Aim assist
                 camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos) -- Adjust camera direction
 
-                highlightTarget(closestTarget) -- Highlight and apply wall hack
-                drawLineToTarget(closestTarget) -- Draw line to the target
-
-                simulateFakeLag() -- Simulate fake lag before shooting
-                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot when aiming at the target
+                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot at the target
+            else
+                removeHighlight(closestTarget) -- Remove highlight if target lost
             end
+        else
+            removeHighlight(closestTarget) -- Remove highlight if no valid target
         end
 
-        wait(0.01) -- Add delay for optimization
+        wait(config.FakeLagAmount or 0.01) -- Add delay for fake lag
     end
 end
 
@@ -220,14 +229,15 @@ AddButton(Main, {
             AimAssistStrength = 0.5, -- Aim assist strength
             TargetPart = "Head",
             TeamCheck = false,
-            WallCheck = true,
+            WallPenetration = true, -- Enable shooting through walls
+            FidgetTracking = true, -- Improve tracking for fidgety players
             HighlightTarget = true,
             TargetTransparency = 0.5, -- Target highlight transparency
             HighlightColor = Color3.fromRGB(255, 0, 0), -- Red highlight color
             LineOfSight = true,
             LineColor = Color3.fromRGB(0, 255, 0), -- Green line of sight color
             FakeLag = true,
-            FakeLagAmount = 0.2, -- Delay in seconds to simulate lag
+            FakeLagAmount = 0.2, -- Simulated lag
             MaxDistanceEnabled = false,
             MaxDistance = 1500,
             FovColor = Color3.fromRGB(102, 45, 145),
@@ -236,9 +246,9 @@ AddButton(Main, {
 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
         wait(0.1)
-        l:Notify("Script Load !", "AimBot", 3)
+        l:Notify("Script Loaded!", "AimBot", 3)
 
-        aimAndShoot(config) -- Call the aim and shoot function with the configuration
+        aimAndShoot(config) -- Call aim and shoot function with the provided config
     end
 })
 
