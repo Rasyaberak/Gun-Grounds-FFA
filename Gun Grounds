@@ -256,52 +256,48 @@ AddButton(Main, {
     end
 })
 
+-- ESP Player
 AddButton(Main, {
-    Name = "Esp Highlight",
+    Name = "Esp",
     Callback = function()
+        local FillColor = Color3.fromRGB(150, 255, 150) -- Even brighter green for close range
         local DepthMode = "AlwaysOnTop"
         local FillTransparency = 0.5
         local OutlineColor = Color3.fromRGB(255, 255, 255)
         local OutlineTransparency = 0
 
-        local CoreGui = game:GetService("CoreGui")
-        local Players = game:GetService("Players")
+        local CoreGui = game:FindService("CoreGui")
+        local Players = game:FindService("Players")
         local lp = Players.LocalPlayer
         local connections = {}
 
-        -- Create a folder to store highlights
         local Storage = Instance.new("Folder")
-        Storage.Name = "Highlight_Storage"
         Storage.Parent = CoreGui
+        Storage.Name = "Highlight_Storage"
 
-        -- Function to update the highlight color based on distance
         local function UpdateHighlightColor(Highlight, distance)
             if distance < 20 then
-                Highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Bright green for close
+                Highlight.FillColor = Color3.fromRGB(150, 255, 150) -- Brighter green for close
             elseif distance < 50 then
-                Highlight.FillColor = Color3.fromRGB(255, 255, 0) -- Bright yellow for medium range
+                Highlight.FillColor = Color3.fromRGB(255, 220, 0) -- Brighter orange for medium range
             else
-                Highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Bright red for far away
+                Highlight.FillColor = Color3.fromRGB(255, 100, 100) -- Brighter red for far away
             end
         end
 
-        -- Function to highlight a player
         local function Highlight(plr)
             local Highlight = Instance.new("Highlight")
             Highlight.Name = plr.Name
-            Highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Start with bright green
+            Highlight.FillColor = FillColor
             Highlight.DepthMode = DepthMode
             Highlight.FillTransparency = FillTransparency
             Highlight.OutlineColor = OutlineColor
             Highlight.OutlineTransparency = OutlineTransparency
             Highlight.Parent = Storage
 
-            -- Function to update the Adornee of the highlight
             local function UpdateAdornee(char)
-                if char and char:FindFirstChild("HumanoidRootPart") then
+                if char then
                     Highlight.Adornee = char
-                else
-                    Highlight.Adornee = nil
                 end
             end
 
@@ -313,7 +309,7 @@ AddButton(Main, {
                 UpdateAdornee(char)
             end)
 
-            -- Update highlight color based on distance
+            -- Constantly update the color based on distance
             local distanceConnection
             distanceConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 if plr and plr.Character and lp and lp.Character then
@@ -322,24 +318,22 @@ AddButton(Main, {
                 end
             end)
 
-            -- Store connection for cleanup
+            -- Store connection so it can be cleaned up later
             connections[plr] = {characterConnection = connections[plr], distanceConnection = distanceConnection}
         end
 
-        -- Highlight new players when they join
         Players.PlayerAdded:Connect(Highlight)
 
-        -- Highlight existing players
-        for _, v in ipairs(Players:GetPlayers()) do
+        for i, v in next, Players:GetPlayers() do
             Highlight(v)
         end
 
-        -- Cleanup when a player leaves
         Players.PlayerRemoving:Connect(function(plr)
             if Storage:FindFirstChild(plr.Name) then
                 Storage[plr.Name]:Destroy()
             end
             if connections[plr] then
+                -- Disconnect both CharacterAdded and distance updates
                 connections[plr].characterConnection:Disconnect()
                 connections[plr].distanceConnection:Disconnect()
                 connections[plr] = nil
@@ -347,3 +341,4 @@ AddButton(Main, {
         end)
     end
 })
+
