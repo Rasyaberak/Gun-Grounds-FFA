@@ -122,7 +122,7 @@ local Toggle = MainTab:CreateToggle({
 local Toggle = MainTab:CreateToggle({
    Name = "ESP",
    CurrentValue = false,
-   Flag = "Toggle2", 
+   Flag = "Toggle1", 
    Callback = function(Value)
    
    -- Made By dqtixz --
