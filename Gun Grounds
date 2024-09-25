@@ -25,30 +25,32 @@ local MainTab = MainWindow:CreateTab("Main", 4483362458) -- Title, Image
 local aimBotEnabled = false  -- Global variable to track the AimBot state
 local aimBotLoop = nil       -- Store the aimBot loop for easy control
 
+-- Create the AimBot toggle
 local Toggle1 = MainTab:CreateToggle({
-   Name = "AimBot",
-   CurrentValue = false,
-   Flag = "Toggle_AimBot", -- Unique flag for AimBot
-   Callback = function(Value)
-      aimBotEnabled = Value -- Set AimBot state based on toggle
+    Name = "AimBot",
+    CurrentValue = false,
+    Flag = "Toggle_AimBot", -- Unique flag for AimBot
+    Callback = function(Value)
+        aimBotEnabled = Value -- Set AimBot state based on toggle
 
-      if aimBotEnabled then
-         print("AimBot Enabled")
-         -- Start the AimBot loop when enabled
-         aimBotLoop = coroutine.create(function()
-            aimAndShoot(config)  -- Start aim and shoot loop
-         end)
-         coroutine.resume(aimBotLoop)
-      else
-         print("AimBot Disabled")
-         -- Stop the AimBot loop by killing the coroutine
-         if aimBotLoop then
-            coroutine.yield(aimBotLoop)  -- Pause the coroutine to stop aim loop
-         end
-      end
-   end,
+        if aimBotEnabled then
+            print("AimBot Enabled")
+            -- Start the AimBot loop when enabled
+            aimBotLoop = coroutine.create(function()
+                aimAndShoot(config)  -- Start aim and shoot loop
+            end)
+            coroutine.resume(aimBotLoop)
+        else
+            print("AimBot Disabled")
+            -- Stop the AimBot loop by killing the coroutine
+            if aimBotLoop then
+                coroutine.yield(aimBotLoop)  -- Pause the coroutine to stop aim loop
+            end
+        end
+    end,
 })
 
+-- Configuration for AimBot
 local config = {
     Fov = 180,
     MaxTransparency = 0.1,
@@ -61,6 +63,7 @@ local config = {
     FovColor = Color3.fromRGB(102, 45, 145)
 }
 
+-- Load external AimBot script
 loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
 wait(0.1)
 
