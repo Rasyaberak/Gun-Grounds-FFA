@@ -22,6 +22,48 @@ local MainWindow = Rayfield:CreateWindow({
 
 local MainTab = MainWindow:CreateTab("Main", 4483362458) -- Title, Image
 
+local aimBotEnabled = false  -- Global variable to track the AimBot state
+local aimBotLoop = nil       -- Store the aimBot loop for easy control
+
+local Toggle1 = MainTab:CreateToggle({
+   Name = "AimBot",
+   CurrentValue = false,
+   Flag = "Toggle_AimBot", -- Unique flag for AimBot
+   Callback = function(Value)
+      aimBotEnabled = Value -- Set AimBot state based on toggle
+
+      if aimBotEnabled then
+         print("AimBot Enabled")
+         -- Start the AimBot loop when enabled
+         aimBotLoop = coroutine.create(function()
+            aimAndShoot(config)  -- Start aim and shoot loop
+         end)
+         coroutine.resume(aimBotLoop)
+      else
+         print("AimBot Disabled")
+         -- Stop the AimBot loop by killing the coroutine
+         if aimBotLoop then
+            coroutine.yield(aimBotLoop)  -- Pause the coroutine to stop aim loop
+         end
+      end
+   end,
+})
+
+local config = {
+    Fov = 180,
+    MaxTransparency = 0.1,
+    Smoothness = 0.1, -- Increase for smoother animation
+    TargetPart = "Head",
+    TeamCheck = false,
+    WallCheck = true,
+    MaxDistanceEnabled = false,
+    MaxDistance = 1500,
+    FovColor = Color3.fromRGB(102, 45, 145)
+}
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
+wait(0.1)
+
 -- Function to handle aiming with animation and auto-shoot (Mobile Compatible)
 local function aimAndShoot(config)
     _G.config = config
@@ -58,7 +100,7 @@ local function aimAndShoot(config)
     end
 
     -- Main aim loop
-    while true do
+    while aimBotEnabled do  -- Only run when AimBot is enabled
         -- Find closest player to aim at (can add TeamCheck and WallCheck conditions)
         targetPlayer = nil
         local closestDistance = math.huge
@@ -95,37 +137,42 @@ local function aimAndShoot(config)
     end
 end
 
-local Toggle = MainTab:CreateToggle({
-   Name = "AimBot",
-   CurrentValue = false,
-   Flag = "Toggle1", 
-   Callback = function(Value)
-   local config = {
-        Fov = 180,
-        MaxTransparency = 0.1,
-        Smoothness = 0.1, -- Increase for smoother animation
-        TargetPart = "Head",
-        TeamCheck = false,
-        WallCheck = true,
-        MaxDistanceEnabled = false,
-        MaxDistance = 1500,
-        FovColor = Color3.fromRGB(102, 45, 145)
-    }
-
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
-    wait(0.1)
-    
-    aimAndShoot(config) -- Call the aim and shoot function   
-   end,
+local Toggle2 = MainTab:CreateToggle({
+    Name = "ESP",
+    CurrentValue = false,
+    Flag = "Toggle_ESP", -- Unique flag for ESP
+    Callback = function(Value)
+        if Value then
+            print("ESP Enabled")
+            -- Enable ESP for existing players
+            for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                if v.Name ~= Player.Name then
+                    coroutine.wrap(Main)(v)
+                end
+            end
+            
+            -- Connect to new players joining
+            game:GetService("Players").PlayerAdded:Connect(function(newplr)
+                coroutine.wrap(Main)(newplr)
+            end)
+        else
+            print("ESP Disabled")
+            -- Disable and clean up ESP for all players
+            for _, v in pairs(game:GetService("Players"):GetPlayers()) do
+                if v.Name ~= Player.Name then
+                    Vis(Library, false) -- Assuming Library holds the drawing lines
+                    -- Here, you may want to add more cleanup if needed
+                end
+            end
+            -- Disconnect the PlayerAdded event
+            if PlayerAddedConnection then
+                PlayerAddedConnection:Disconnect()
+            end
+        end
+    end,
 })
 
-local Toggle = MainTab:CreateToggle({
-   Name = "ESP",
-   CurrentValue = false,
-   Flag = "Toggle1", 
-   Callback = function(Value)
-   
-   -- Made By dqtixz --
+-- Settings and Local Variables
 local Settings = {
     Box_Color = Color3.fromRGB(255, 0, 0),
     Box_Thickness = 2,
@@ -137,7 +184,7 @@ local Settings = {
     Visibility_Check = true
 }
 
---Locals
+-- Locals
 local Space = game:GetService("Workspace")
 local Player = game:GetService("Players").LocalPlayer
 local Camera = Space.CurrentCamera
@@ -181,7 +228,7 @@ end
 -- Main Draw Function
 local function Main(plr)
     repeat wait() until plr.Character and plr.Character:FindFirstChild("Humanoid")
-    
+
     local R15 = plr.Character.Humanoid.RigType == Enum.HumanoidRigType.R15
     local Library = {
         TL1 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
@@ -194,9 +241,9 @@ local function Main(plr)
         BR2 = NewLine(Settings.Box_Color, Settings.Box_Thickness),
         HeadBox = NewLine(Color3.fromRGB(255, 255, 255), Settings.Box_Thickness) -- Head Position Indicator
     }
-    
+
     coroutine.wrap(Rainbow)(Library, 0.15)
-    
+
     -- Pulse Effect Timer
     local function PulseEffect(lib)
         while true do
@@ -215,7 +262,7 @@ local function Main(plr)
     oripart.CanCollide = false
     oripart.Size = Vector3.new(1, 1, 1)
     oripart.Position = Vector3.new(0, 0, 0)
-    
+
     -- Updater Loop
     local function Updater()
         local c 
@@ -256,7 +303,6 @@ local function Main(plr)
                     -- Weapon Display
                     if plr.Character:FindFirstChildOfClass("Tool") then
                         local weapon = plr.Character:FindFirstChildOfClass("Tool").Name
-                        -- Here, you can draw text using TextLabel GUI or add to Drawing to show the weapon name
                         print("Player holding: " .. weapon)
                     end
 
@@ -267,7 +313,6 @@ local function Main(plr)
                     end
 
                     Vis(Library, true)
-
                 else 
                     Vis(Library, false)
                 end
@@ -283,7 +328,7 @@ local function Main(plr)
             end
         end)
     end
-    
+
     coroutine.wrap(Updater)()
 end
 
@@ -297,8 +342,3 @@ end
 game:GetService("Players").PlayerAdded:Connect(function(newplr)
     coroutine.wrap(Main)(newplr)
 end)
-
-wait(0.1)
-l:Notify("Visual Script Load", "ESP", 3)
-   end,
-})
