@@ -90,16 +90,14 @@ wait(1)
 local Main = MakeTab({Name = "Aim (Head)"})
 wait(1)
 
--- Updated AimBot function with Auto-Reload feature
 local function aimAndShoot(config)
     _G.config = config
 
     local player = game.Players.LocalPlayer
     local camera = game.Workspace.CurrentCamera
     local targetPlayer = nil
-    local maxAmmo = 10  -- Maximum ammo per magazine
-    local currentAmmo = maxAmmo  -- Current ammo in the magazine
-    local reloadTime = 2  -- Time in seconds to reload
+    local currentAmmo = config.MaxAmmo or 10 -- Set a default max ammo
+    local maxAmmo = config.MaxAmmo or 10 -- Set a default max ammo
 
     -- Smooth aim function with animation
     local function smoothAim(targetPos, currentPos)
@@ -114,16 +112,54 @@ local function aimAndShoot(config)
             if humanoid and humanoid.Health > 0 then
                 humanoid:TakeDamage(600)  -- Example of dealing damage directly
                 currentAmmo = currentAmmo - 1  -- Decrease ammo count after each shot
+                return true -- Return true if hit
             end
         end
+        return false -- Return false if no hit
     end
 
     -- Reload function
     local function reload()
         if currentAmmo <= 0 then
-            
-            wait(reloadTime)  -- Simulate reload time
             currentAmmo = maxAmmo  -- Reset ammo after reload
+        end
+    end
+
+    -- Anti-Exploit Measures
+    local function antiExploit()
+        if currentAmmo <= 0 then
+            reload() -- Reload if ammo is out
+        end
+    end
+
+    -- Hit Feedback
+    local function hitFeedback(hit)
+        if hit then
+            -- Visual Feedback
+            local hitMarker = Instance.new("Part")
+            hitMarker.Size = Vector3.new(1, 1, 1)
+            hitMarker.Color = Color3.new(1, 0, 0) -- Red color for hit marker
+            hitMarker.Position = camera.CFrame.Position + (camera.CFrame.LookVector * 5)
+            hitMarker.Anchored = true
+            hitMarker.Parent = game.Workspace
+            wait(0.2) -- Duration of the hit marker
+            hitMarker:Destroy()
+
+            -- Sound Feedback
+            local sound = Instance.new("Sound", camera)
+            sound.SoundId = "rbxassetid://123456" -- Replace with actual sound ID
+            sound:Play()
+            wait(0.2)
+        end
+    end
+
+    -- Input Lag Compensation
+    local function inputLagCompensation()
+        -- Here you could monitor network latency and adjust accordingly
+        -- For simplicity, this function is just a placeholder
+        local latency = game:GetService("NetworkClient").GetAveragePing()
+        if latency > 100 then -- Example threshold
+            -- Adjust sensitivity or other parameters here based on latency
         end
     end
 
@@ -145,6 +181,8 @@ local function aimAndShoot(config)
 
     -- Main aim loop
     while true do
+        antiExploit() -- Apply anti-exploit measures
+
         -- Find closest player to aim at
         targetPlayer = nil
         local closestDistance = math.huge
@@ -175,8 +213,9 @@ local function aimAndShoot(config)
             camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
             
             -- Auto-shoot and highlight target
-            autoShoot(targetPlayer.Character[config.TargetPart])
+            local hit = autoShoot(targetPlayer.Character[config.TargetPart])
             highlightTarget(targetPlayer)
+            hitFeedback(hit) -- Provide hit feedback
             
             -- Restore camera position
             camera.CFrame = oldPos
@@ -187,6 +226,7 @@ local function aimAndShoot(config)
             end
         end
 
+        inputLagCompensation() -- Adjust for input lag
         wait(0.01)  -- Add a short delay for optimization
     end
 end
@@ -204,12 +244,13 @@ AddButton(Main, {
             WallCheck = true,
             MaxDistanceEnabled = false,
             MaxDistance = 1500,
+            MaxAmmo = 10, -- Max ammo count
             FovColor = Color3.fromRGB(102, 45, 145)
         }
 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
         wait(0.1)
-        l:Notify("Script Load!", "Aim Small", 3)
+        l:Notify("Script Load!", "AimBot", 3)
 
         aimAndShoot(config) -- Call the aim and shoot function with updated features
     end
