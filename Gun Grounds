@@ -81,13 +81,13 @@ wait(1)
 -- Logs Tab
 local MainLogs = MakeTab({Name = "Logs"})
 AddParagraph(MainLogs, {"Made By RasyX"})
-AddParagraph(MainLogs, {"[ FEATURES ] AimBot ( NEW ),"})
+AddParagraph(MainLogs, {"[ FEATURES ] AimBot, ESP Highlight ( NEW ),"})
 AddParagraph(MainLogs, {"21/09/2024", "Version 0.0.1"})
 wait(1)
 AddParagraph(MainLogs, {"There will probably be a script update, coming soon!! 👽"})
 wait(1)
 
-local Main = MakeTab({Name = "Aim (Head)"})
+local Main = MakeTab({Name = "Main"})
 wait(1)
 
 local function aimAndShoot(config)
@@ -259,22 +259,85 @@ AddButton(Main, {
 AddButton(Main, {
     Name = "Esp Highlight",
     Callback = function()
-        -- Define the highlight color
-        local highlightColor = { r = 0, g = 255, b = 0, a = 255 } -- Bright green
+        local FillColor = Color3.fromRGB(150, 255, 150) -- Even brighter green for close range
+        local DepthMode = "AlwaysOnTop"
+        local FillTransparency = 0.5
+        local OutlineColor = Color3.fromRGB(255, 255, 255)
+        local OutlineTransparency = 0
 
-        -- Function to apply ESP highlight
-        local function highlightESP()
-            for _, player in ipairs(GetPlayers()) do
-                -- Check if the player is valid and not the local player
-                if player ~= GetLocal().player then
-                    -- Set the highlight using the defined color
-                    SetHighlight(player, highlightColor)
-                end
+        local CoreGui = game:FindService("CoreGui")
+        local Players = game:FindService("Players")
+        local lp = Players.LocalPlayer
+        local connections = {}
+
+        local Storage = Instance.new("Folder")
+        Storage.Parent = CoreGui
+        Storage.Name = "Highlight_Storage"
+
+        local function UpdateHighlightColor(Highlight, distance)
+            if distance < 20 then
+                Highlight.FillColor = Color3.fromRGB(150, 255, 150) -- Brighter green for close
+            elseif distance < 50 then
+                Highlight.FillColor = Color3.fromRGB(255, 220, 0) -- Brighter orange for medium range
+            else
+                Highlight.FillColor = Color3.fromRGB(255, 100, 100) -- Brighter red for far away
             end
         end
 
-        -- Call the highlight function
-        highlightESP()
+        local function Highlight(plr)
+            local Highlight = Instance.new("Highlight")
+            Highlight.Name = plr.Name
+            Highlight.FillColor = FillColor
+            Highlight.DepthMode = DepthMode
+            Highlight.FillTransparency = FillTransparency
+            Highlight.OutlineColor = OutlineColor
+            Highlight.OutlineTransparency = OutlineTransparency
+            Highlight.Parent = Storage
+
+            local function UpdateAdornee(char)
+                if char then
+                    Highlight.Adornee = char
+                end
+            end
+
+            -- Set the initial Adornee to the player's character
+            UpdateAdornee(plr.Character)
+
+            -- Update Adornee when the player's character respawns
+            connections[plr] = plr.CharacterAdded:Connect(function(char)
+                UpdateAdornee(char)
+            end)
+
+            -- Constantly update the color based on distance
+            local distanceConnection
+            distanceConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if plr and plr.Character and lp and lp.Character then
+                    local distance = (lp.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+                    UpdateHighlightColor(Highlight, distance)
+                end
+            end)
+
+            -- Store connection so it can be cleaned up later
+            connections[plr] = {characterConnection = connections[plr], distanceConnection = distanceConnection}
+        end
+
+        Players.PlayerAdded:Connect(Highlight)
+
+        for i, v in next, Players:GetPlayers() do
+            Highlight(v)
+        end
+
+        Players.PlayerRemoving:Connect(function(plr)
+            if Storage:FindFirstChild(plr.Name) then
+                Storage[plr.Name]:Destroy()
+            end
+            if connections[plr] then
+                -- Disconnect both CharacterAdded and distance updates
+                connections[plr].characterConnection:Disconnect()
+                connections[plr].distanceConnection:Disconnect()
+                connections[plr] = nil
+            end
+        end)
     end
 })
 
