@@ -96,7 +96,6 @@ local function aimAndShoot(config)
     local player = game.Players.LocalPlayer
     local camera = game.Workspace.CurrentCamera
     local targetPlayer = nil
-    local highlight = Instance.new("Highlight")
 
     -- Prediksi untuk target yang bergerak
     local function predictPosition(target)
@@ -106,30 +105,42 @@ local function aimAndShoot(config)
         return targetPart.Position + targetVelocity * predictionTime
     end
 
-    -- Cek apakah target terlihat
+    -- Cek apakah target terlihat (line of sight check)
     local function isTargetVisible(target)
         local targetPosition = target.Character[config.TargetPart].Position
         local ray = Ray.new(camera.CFrame.Position, (targetPosition - camera.CFrame.Position).unit * 100)
         local hit, position = game.Workspace:FindPartOnRay(ray, player.Character)
-
         return hit == nil or hit:IsDescendantOf(target.Character)
     end
 
-    -- Aim assist dengan kekuatan kustom
+    -- Wall Hack and Target Highlight
+    local function highlightTarget(target)
+        if config.WallHack then
+            -- Make walls transparent
+            for _, part in pairs(game.Workspace:GetDescendants()) do
+                if part:IsA("BasePart") and not part:IsDescendantOf(target.Character) then
+                    part.Transparency = config.MaxTransparency
+                end
+            end
+        end
+        
+        -- Highlight target
+        if config.HighlightTarget then
+            local targetPart = target.Character[config.TargetPart]
+            if targetPart then
+                targetPart.Transparency = config.TargetTransparency
+                local highlight = Instance.new("SelectionBox", targetPart)
+                highlight.Adornee = targetPart
+                highlight.Color3 = config.HighlightColor
+                highlight.LineThickness = 0.05
+            end
+        end
+    end
+
+    -- Aim assist with custom strength
     local function aimAssist(targetPos, currentPos)
         local aimStrength = config.AimAssistStrength
         return currentPos:Lerp(targetPos, aimStrength)
-    end
-
-    -- Highlight target
-    local function highlightTarget(target)
-        if target and target.Character then
-            highlight.Parent = target.Character
-            highlight.Adornee = target.Character
-            highlight.FillColor = config.HighlightColor
-            highlight.FillTransparency = config.HighlightTransparency
-            highlight.OutlineTransparency = config.OutlineTransparency
-        end
     end
 
     -- Auto-reload function
@@ -137,85 +148,97 @@ local function aimAndShoot(config)
         local tool = player.Backpack:FindFirstChildOfClass("Tool")
         if tool and tool:FindFirstChild("Ammo") then
             if tool.Ammo.Value <= 0 then
-                tool:Activate() -- Memanggil reload jika ammo habis
-                wait(1) -- Tunggu beberapa saat untuk reload
+                tool:Activate() -- Reload automatically if ammo is out
+                wait(1) -- Wait a moment to reload
             end
         end
     end
 
-    -- Auto-shoot function (untuk mobile)
+    -- Auto-shoot function
     local function autoShoot(target)
         if target then
             local humanoid = target.Parent:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                autoReload() -- Cek dan lakukan reload otomatis
-                humanoid:TakeDamage(10) -- Misalnya, memberikan damage langsung
+                autoReload() -- Auto-reload if needed
+                humanoid:TakeDamage(1000) -- Apply damage
             end
         end
     end
 
-    -- Auto target function
-    local function getClosestTarget()
-        local closest, minDistance = nil, math.huge
-        for _, v in pairs(game.Players:GetPlayers()) do
-            if v ~= player and v.Character and v.Character:FindFirstChild(config.TargetPart) then
-                local distance = (v.Character[config.TargetPart].Position - player.Character.PrimaryPart.Position).Magnitude
-                if distance < minDistance and (not config.TeamCheck or v.Team ~= player.Team) then
-                    minDistance = distance
-                    closest = v
-                end
-            end
+    -- Fake Lag Simulation
+    local function simulateFakeLag()
+        if config.FakeLag then
+            wait(config.FakeLagAmount) -- Delay to simulate fake lag
         end
-        return closest
+    end
+
+    -- Line of Sight function (draw line from player to target)
+    local function drawLineToTarget(target)
+        if config.LineOfSight then
+            local beam = Instance.new("Beam", camera)
+            local startPos = Instance.new("Attachment", camera)
+            local endPos = Instance.new("Attachment", target.Character[config.TargetPart])
+            beam.Attachment0 = startPos
+            beam.Attachment1 = endPos
+            beam.Color = ColorSequence.new(config.LineColor)
+            beam.Width0 = 0.05
+            beam.Width1 = 0.05
+        end
     end
 
     -- Main aim loop
     while true do
-        -- Cari target terdekat dan valid
+        -- Find the closest and valid target
         local closestTarget = getClosestTarget()
 
         if closestTarget and closestTarget.Character and closestTarget.Character:FindFirstChild(config.TargetPart) then
-            highlightTarget(closestTarget) -- Highlight target
-
-            if isTargetVisible(closestTarget) or config.WallHack then -- Cek apakah target terlihat atau aktifkan WallHack
+            if isTargetVisible(closestTarget) then -- Check if the target is visible
                 local targetPos = closestTarget.Character[config.TargetPart].Position
                 local aimPos = aimAssist(targetPos, camera.CFrame.Position) -- Aim assist
-                camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos) -- Arahkan kamera
-                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot ketika aim mengunci target
+                camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos) -- Adjust camera direction
+
+                highlightTarget(closestTarget) -- Highlight and apply wall hack
+                drawLineToTarget(closestTarget) -- Draw line to the target
+
+                simulateFakeLag() -- Simulate fake lag before shooting
+                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot when aiming at the target
             end
         end
 
-        wait(0.01) -- Tambahkan delay untuk optimasi
+        wait(0.01) -- Add delay for optimization
     end
 end
 
--- Button untuk AimBot (Mobile Compatible)
+-- Button for AimBot (Mobile Compatible)
 AddButton(Main, {
     Name = "AimBot",
     Callback = function()
         local config = {
             Fov = 180,
             MaxTransparency = 0.1,
-            Smoothness = 0.1, -- Untuk aim yang lebih smooth
-            AimAssistStrength = 0.5, -- Kekuatan aim assist
+            Smoothness = 0.1, -- For smoother aim
+            AimAssistStrength = 0.5, -- Aim assist strength
             TargetPart = "Head",
             TeamCheck = false,
             WallCheck = true,
+            HighlightTarget = true,
+            TargetTransparency = 0.5, -- Target highlight transparency
+            HighlightColor = Color3.fromRGB(255, 0, 0), -- Red highlight color
+            LineOfSight = true,
+            LineColor = Color3.fromRGB(0, 255, 0), -- Green line of sight color
+            FakeLag = true,
+            FakeLagAmount = 0.2, -- Delay in seconds to simulate lag
             MaxDistanceEnabled = false,
             MaxDistance = 1500,
             FovColor = Color3.fromRGB(102, 45, 145),
-            ProjectileSpeed = 1000, -- Kecepatan peluru untuk prediksi target bergerak
-            HighlightColor = Color3.fromRGB(255, 0, 0), -- Warna highlight target
-            HighlightTransparency = 0.5,
-            OutlineTransparency = 0.5,
-            WallHack = true -- Wall Hack diaktifkan
+            ProjectileSpeed = 1000 -- Projectile speed for target prediction
         }
 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
         wait(0.1)
         l:Notify("Script Load !", "AimBot", 3)
 
-        aimAndShoot(config) -- Panggil fungsi aim dan shoot dengan konfigurasi
+        aimAndShoot(config) -- Call the aim and shoot function with the configuration
     end
 })
 
