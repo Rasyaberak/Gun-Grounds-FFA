@@ -257,16 +257,15 @@ AddButton(Main, {
 })
 
 AddButton(Main, {
-    Name = "ESP Highlight",
+    Name = "Esp Highlight",
     Callback = function()
         local DepthMode = "AlwaysOnTop"
-        local FillTransparency = 0.4
+        local FillTransparency = 0.5
         local OutlineColor = Color3.fromRGB(255, 255, 255)
         local OutlineTransparency = 0
 
         local CoreGui = game:GetService("CoreGui")
         local Players = game:GetService("Players")
-        local RunService = game:GetService("RunService")
         local lp = Players.LocalPlayer
         local connections = {}
 
@@ -275,30 +274,22 @@ AddButton(Main, {
         Storage.Name = "Highlight_Storage"
         Storage.Parent = CoreGui
 
-        -- Highlight color settings
-        local highlightColors = {
-            close = Color3.fromRGB(0, 255, 0),   -- Bright green for close
-            medium = Color3.fromRGB(255, 255, 0), -- Bright yellow for medium range
-            far = Color3.fromRGB(255, 0, 0)       -- Bright red for far away
-        }
-
         -- Function to update the highlight color based on distance
         local function UpdateHighlightColor(Highlight, distance)
             if distance < 20 then
-                Highlight.FillColor = highlightColors.close
+                Highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Bright green for close
             elseif distance < 50 then
-                Highlight.FillColor = highlightColors.medium
+                Highlight.FillColor = Color3.fromRGB(255, 255, 0) -- Bright yellow for medium range
             else
-                Highlight.FillColor = highlightColors.far
+                Highlight.FillColor = Color3.fromRGB(255, 0, 0) -- Bright red for far away
             end
         end
 
-        -- Function to create and configure a highlight for a player
-        local function CreateHighlight(plr)
-            if Storage:FindFirstChild(plr.Name) then return end -- Prevent duplicate highlights
+        -- Function to highlight a player
+        local function Highlight(plr)
             local Highlight = Instance.new("Highlight")
             Highlight.Name = plr.Name
-            Highlight.FillColor = highlightColors.close -- Start with bright green
+            Highlight.FillColor = Color3.fromRGB(0, 255, 0) -- Start with bright green
             Highlight.DepthMode = DepthMode
             Highlight.FillTransparency = FillTransparency
             Highlight.OutlineColor = OutlineColor
@@ -307,43 +298,41 @@ AddButton(Main, {
 
             -- Function to update the Adornee of the highlight
             local function UpdateAdornee(char)
-                Highlight.Adornee = char and char:FindFirstChild("HumanoidRootPart") and char or nil
-            end
-
-            -- Set initial Adornee to the player's character
-            UpdateAdornee(plr.Character)
-
-            -- Send feedback to the player when highlighted
-            plr:SendNotification("You are highlighted!", "You are being tracked!", 5) -- Customize notification duration
-
-            -- Update Adornee on character respawn
-            connections[plr] = plr.CharacterAdded:Connect(function(char)
-                UpdateAdornee(char)
-                -- Immediately apply highlight when player respawns
-                Highlight.Adornee = char:FindFirstChild("HumanoidRootPart")
-            end)
-        end
-
-        -- Function to monitor distance and update highlights
-        local function UpdateHighlights()
-            for _, plr in ipairs(Players:GetPlayers()) do
-                if plr.Character and lp.Character then
-                    local distance = (lp.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
-                    UpdateHighlightColor(Storage:FindFirstChild(plr.Name), distance)
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    Highlight.Adornee = char
+                else
+                    Highlight.Adornee = nil
                 end
             end
+
+            -- Set the initial Adornee to the player's character
+            UpdateAdornee(plr.Character)
+
+            -- Update Adornee when the player's character respawns
+            connections[plr] = plr.CharacterAdded:Connect(function(char)
+                UpdateAdornee(char)
+            end)
+
+            -- Update highlight color based on distance
+            local distanceConnection
+            distanceConnection = game:GetService("RunService").Heartbeat:Connect(function()
+                if plr and plr.Character and lp and lp.Character then
+                    local distance = (lp.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
+                    UpdateHighlightColor(Highlight, distance)
+                end
+            end)
+
+            -- Store connection for cleanup
+            connections[plr] = {characterConnection = connections[plr], distanceConnection = distanceConnection}
         end
+
+        -- Highlight new players when they join
+        Players.PlayerAdded:Connect(Highlight)
 
         -- Highlight existing players
         for _, v in ipairs(Players:GetPlayers()) do
-            CreateHighlight(v)
+            Highlight(v)
         end
-
-        -- Connect Heartbeat for updating highlight colors
-        RunService.Heartbeat:Connect(UpdateHighlights)
-
-        -- Highlight new players when they join
-        Players.PlayerAdded:Connect(CreateHighlight)
 
         -- Cleanup when a player leaves
         Players.PlayerRemoving:Connect(function(plr)
@@ -351,16 +340,10 @@ AddButton(Main, {
                 Storage[plr.Name]:Destroy()
             end
             if connections[plr] then
-                connections[plr]:Disconnect()
+                connections[plr].characterConnection:Disconnect()
+                connections[plr].distanceConnection:Disconnect()
                 connections[plr] = nil
             end
-        end)
-
-        -- Ensure highlights are applied immediately when a player respawns
-        Players.PlayerAdded:Connect(function(plr)
-            plr.CharacterAdded:Connect(function()
-                CreateHighlight(plr)
-            end)
         end)
     end
 })
