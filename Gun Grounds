@@ -255,3 +255,26 @@ AddButton(Main, {
         aimAndShoot(config) -- Call the aim and shoot function with updated features
     end
 })
+
+AddButton(Main, {
+    Name = "Esp Highlight",
+    Callback = function()
+        -- Define the highlight color
+        local highlightColor = { r = 0, g = 255, b = 0, a = 255 } -- Bright green
+
+        -- Function to apply ESP highlight
+        local function highlightESP()
+            for _, player in ipairs(GetPlayers()) do
+                -- Check if the player is valid and not the local player
+                if player ~= GetLocal().player then
+                    -- Set the highlight using the defined color
+                    SetHighlight(player, highlightColor)
+                end
+            end
+        end
+
+        -- Call the highlight function
+        highlightESP()
+    end
+})
+
