@@ -256,9 +256,7 @@ AddButton(Main, {
     end
 })
 
-local EspMain = MakeTab({Name = "Esp"})
-wait(1)
-AddButton(EspMain, {
+AddButton(Main, {
     Name = "Esp",
     Callback = function()
         local FillColor = Color3.fromRGB(180, 255, 180) -- Even brighter green for close range
@@ -347,3 +345,5 @@ end
 
 -- Connect to PlayerRemoving event
 Players.PlayerRemoving:Connect(CleanUpPlayer)
+end
+})
