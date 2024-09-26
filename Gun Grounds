@@ -256,6 +256,9 @@ AddButton(Main, {
 AddButton(Main, {
     Name = "Esp",
     Callback = function()
+    
+    -- ESP HIGHLIGHT 
+    
         local FillColor = Color3.fromRGB(150, 255, 150) -- Even brighter green for close range
         local DepthMode = "AlwaysOnTop"
         local FillTransparency = 0.5
@@ -336,6 +339,45 @@ AddButton(Main, {
             end
         end)
         
-        l:Notify("Visual Script Load !", "Esp Highlight", 3)
+        -- ESP WEAPON RAINBOW ( maybe )
+        
+local function createESP(item)
+    -- Create a new BillboardGui for the ESP
+    local billboard = Instance.new("BillboardGui")
+    billboard.Name = "ESP"
+    billboard.AlwaysOnTop = true -- Makes sure it renders on top of everything
+    billboard.Size = UDim2.new(0, 200, 0, 50) -- Size of the ESP box
+    billboard.StudsOffset = Vector3.new(0, 2, 0) -- Adjusts its position
+    billboard.Adornee = item -- Set the ESP to attach to the item (weapon)
+    
+    -- Add a Frame to the BillboardGui (this is the visible box)
+    local frame = Instance.new("Frame", billboard)
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(math.random(255), math.random(255), math.random(255)) -- Random bright color
+    frame.BackgroundTransparency = 0.5 -- Slight transparency for effect
+    
+    -- Parent the ESP BillboardGui to the item (weapon)
+    billboard.Parent = item
+end
+
+-- Function to apply ESP to all weapons in the game
+local function applyESP()
+    for _, object in pairs(workspace:GetChildren()) do
+        if object:IsA("Tool") and object.Name == "Weapon" then
+            -- Check if the weapon already has ESP
+            if not object:FindFirstChild("ESP") then
+                createESP(object)
+            end
+        end
+    end
+end
+
+-- Loop to continuously update the ESP (in case new weapons spawn)
+while true do
+    applyESP() -- Apply ESP to new weapons
+    wait(1) -- Update every second
+end
+
+        l:Notify("Visual Script Load !", "ESP 👽", 3)
     end
 })
