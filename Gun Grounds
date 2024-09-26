@@ -192,7 +192,10 @@ local function aimAndShoot(config)
                 local targetPos = otherPlayer.Character[config.TargetPart].Position
                 local distance = (targetPos - player.Character.Head.Position).magnitude
 
-                if distance < shortestDistance and (not config.TeamCheck or otherPlayer.Team ~= player.Team) then
+                -- Check if the target is on the enemy team
+                local isEnemy = config.TeamCheck and otherPlayer.Team ~= player.Team
+
+                if distance < shortestDistance and (not config.TeamCheck or isEnemy) then
                     shortestDistance = distance
                     closestTarget = otherPlayer
                 end
@@ -231,7 +234,7 @@ AddButton(Main, {
             Smoothness = 0.1,
             AimAssistStrength = 0.7, -- Increased aim assist strength for better accuracy
             TargetPart = "Head",
-            TeamCheck = false,
+            TeamCheck = true, -- Enable team check
             WallCheck = true,
             MaxDistanceEnabled = false,
             MaxDistance = 1500,
@@ -251,16 +254,15 @@ AddButton(Main, {
 AddButton(Main, {
     Name = "Esp",
     Callback = function()
-    
-    -- ESP HIGHLIGHT 
-        local FillColor = Color3.fromRGB(150, 255, 150) -- Even brighter green for close range
+
+        -- ESP HIGHLIGHT 
         local DepthMode = "AlwaysOnTop"
         local FillTransparency = 0.5
         local OutlineColor = Color3.fromRGB(255, 255, 255)
         local OutlineTransparency = 0
 
-        local CoreGui = game:FindService("CoreGui")
-        local Players = game:FindService("Players")
+        local CoreGui = game:GetService("CoreGui")
+        local Players = game:GetService("Players")
         local lp = Players.LocalPlayer
         local connections = {}
 
@@ -268,20 +270,23 @@ AddButton(Main, {
         Storage.Parent = CoreGui
         Storage.Name = "Highlight_Storage"
 
-        local function UpdateHighlightColor(Highlight, distance)
-            if distance < 20 then
-                Highlight.FillColor = Color3.fromRGB(150, 255, 150) -- Brighter green for close
-            elseif distance < 50 then
-                Highlight.FillColor = Color3.fromRGB(255, 220, 0) -- Brighter orange for medium range
+        local function UpdateHighlightColor(Highlight, distance, isOwnTeam)
+            if isOwnTeam then
+                Highlight.FillColor = Color3.fromRGB(0, 150, 255) -- Brighter Blue for own team
             else
-                Highlight.FillColor = Color3.fromRGB(255, 100, 100) -- Brighter red for far away
+                if distance < 20 then
+                    Highlight.FillColor = Color3.fromRGB(200, 255, 200) -- Brighter Green for very close
+                elseif distance < 50 then
+                    Highlight.FillColor = Color3.fromRGB(255, 255, 100) -- Brighter Orange for somewhat close
+                else
+                    Highlight.FillColor = Color3.fromRGB(255, 150, 150) -- Brighter Red for far away
+                end
             end
         end
 
         local function Highlight(plr)
             local Highlight = Instance.new("Highlight")
             Highlight.Name = plr.Name
-            Highlight.FillColor = FillColor
             Highlight.DepthMode = DepthMode
             Highlight.FillTransparency = FillTransparency
             Highlight.OutlineColor = OutlineColor
@@ -291,6 +296,8 @@ AddButton(Main, {
             local function UpdateAdornee(char)
                 if char then
                     Highlight.Adornee = char
+                else
+                    Highlight.Adornee = nil -- Clear Adornee if character does not exist
                 end
             end
 
@@ -307,7 +314,8 @@ AddButton(Main, {
             distanceConnection = game:GetService("RunService").Heartbeat:Connect(function()
                 if plr and plr.Character and lp and lp.Character then
                     local distance = (lp.Character.HumanoidRootPart.Position - plr.Character.HumanoidRootPart.Position).Magnitude
-                    UpdateHighlightColor(Highlight, distance)
+                    local isOwnTeam = (plr.Team == lp.Team) -- Check if the player is on the same team
+                    UpdateHighlightColor(Highlight, distance, isOwnTeam)
                 end
             end)
 
@@ -315,10 +323,18 @@ AddButton(Main, {
             connections[plr] = {characterConnection = connections[plr], distanceConnection = distanceConnection}
         end
 
-        Players.PlayerAdded:Connect(Highlight)
+        local function CheckTeamHighlight(plr)
+            Highlight(plr) -- Highlight all players, the color will be set based on team
+        end
 
-        for i, v in next, Players:GetPlayers() do
-            Highlight(v)
+        Players.PlayerAdded:Connect(function(plr)
+            plr.CharacterAdded:Wait() -- Wait for the character to be added
+            CheckTeamHighlight(plr) -- Highlight player based on team
+        end)
+
+        -- Initialize highlights for existing players
+        for _, plr in next, Players:GetPlayers() do
+            CheckTeamHighlight(plr) -- Check existing players on team
         end
 
         Players.PlayerRemoving:Connect(function(plr)
@@ -327,14 +343,16 @@ AddButton(Main, {
             end
             if connections[plr] then
                 -- Disconnect both CharacterAdded and distance updates
-                connections[plr].characterConnection:Disconnect()
-                connections[plr].distanceConnection:Disconnect()
+                if connections[plr].characterConnection then
+                    connections[plr].characterConnection:Disconnect()
+                end
+                if connections[plr].distanceConnection then
+                    connections[plr].distanceConnection:Disconnect()
+                end
                 connections[plr] = nil
             end
         end)
-        
-        -- ESP LINE
-        
-        l:Notify("Visual Script Load !", "ESP 👽", 3)
+
+        l:Notify("Visual Script Loaded!", "ESP 👽", 3)
     end
 })
