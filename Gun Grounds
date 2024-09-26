@@ -90,27 +90,14 @@ wait(1)
 local Main = MakeTab({Name = "Main"})
 wait(1)
 
--- Configuration for the aimbot behavior
-local config = {
-    TargetPart = "Head",  -- The body part to aim at (e.g., "Head", "Torso")
-    AimAssistStrength = 0.6,  -- Adjust the strength of the aim assist (0.0 - 1.0)
-    TeamCheck = true,  -- Ensure the aimbot only targets enemies
-    WallCheck = true,  -- Check for walls between the player and target
-    ProjectileSpeed = 1200,  -- Speed of the projectile for target prediction
-    MaxDistance = 1000,  -- Max distance for the aimbot to target
-    TargetFov = 180,  -- Field of view for targeting (degrees)
-    SmoothingFactor = 0.1,  -- Smoothing factor for aim adjustment
-    HighlightTarget = true,  -- Visually highlight the target
-    AutoShootEnabled = true,  -- Enable auto-shooting on target lock
-    FakeLagEnabled = true,  -- Enable fake lag to disrupt enemy aim
-}
+local function aimAndShoot(config)
+    _G.config = config
 
--- Main function to handle aiming and shooting
-local function aimAndShoot()
     local player = game.Players.LocalPlayer
     local camera = game.Workspace.CurrentCamera
+    local targetPlayer = nil
 
-    -- Helper function to predict the position of a moving target
+    -- Prediction for moving targets
     local function predictPosition(target)
         local targetPart = target.Character[config.TargetPart]
         local targetVelocity = target.Character.HumanoidRootPart.Velocity
@@ -118,7 +105,7 @@ local function aimAndShoot()
         return targetPart.Position + targetVelocity * predictionTime
     end
 
-    -- Function to check if the target is visible (no obstacles in the way)
+    -- Check if the target is visible (considering walls)
     local function isTargetVisible(target)
         local targetPosition = target.Character[config.TargetPart].Position
         local ray = Ray.new(camera.CFrame.Position, (targetPosition - camera.CFrame.Position).unit * 100)
@@ -127,18 +114,88 @@ local function aimAndShoot()
         return hit == nil or hit:IsDescendantOf(target.Character)
     end
 
-    -- Helper function to calculate the closest enemy target
+    -- Aim assist for smoother aiming towards target
+    local function aimAssist(targetPos, currentPos)
+        local aimStrength = config.AimAssistStrength
+        return currentPos:Lerp(targetPos, aimStrength)
+    end
+
+    -- Function to confuse the target player
+    local function makePlayerConfused(targetPlayer)
+        if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("Humanoid") then
+            return
+        end
+
+        local humanoid = targetPlayer.Character.Humanoid
+        local playerCamera = game.Workspace.CurrentCamera
+
+        -- Flip controls to confuse movement
+        humanoid.WalkSpeed = -humanoid.WalkSpeed
+        wait(1.5)
+        humanoid.WalkSpeed = -humanoid.WalkSpeed
+
+        -- Random camera movements for disorientation
+        for i = 1, 5 do
+            local randomRotation = math.random(-90, 90)
+            playerCamera.CFrame = playerCamera.CFrame * CFrame.Angles(math.rad(randomRotation), 0, 0)
+            wait(0.1)
+        end
+
+        -- Random teleportation to nearby positions
+        for i = 1, 3 do
+            local randomOffset = Vector3.new(math.random(-5, 5), 0, math.random(-5, 5))
+            local newPosition = humanoid.Parent.PrimaryPart.Position + randomOffset
+            humanoid.Parent:SetPrimaryPartCFrame(CFrame.new(newPosition))
+            wait(0.3)
+        end
+    end
+
+    -- Auto-shoot function with confusion effect
+    local function autoShoot(target)
+        if target then
+            local humanoid = target.Parent:FindFirstChild("Humanoid")
+            if humanoid and humanoid.Health > 0 then
+                humanoid:TakeDamage(75) -- Increased damage to make shots more powerful
+                -- Trigger confusion effect on the target player
+                local targetPlayer = game.Players:GetPlayerFromCharacter(target.Parent)
+                makePlayerConfused(targetPlayer)
+            end
+        end
+    end
+
+    -- Fake Lag Implementation
+    local function applyFakeLag()
+        local originalPosition = player.Character.HumanoidRootPart.Position
+        local fakeLagDuration = 0.2 -- Lag duration in seconds
+        wait(fakeLagDuration)
+        player.Character.HumanoidRootPart.Position = originalPosition
+    end
+
+    -- Highlight the target with a visual indicator
+    local function highlightTarget(target)
+        if target and target.Character then
+            for _, part in pairs(target.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.BrickColor = BrickColor.new("Bright red") -- Change the target's color to red
+                end
+            end
+        end
+    end
+
+    -- Main function to get closest valid target
     local function getClosestTarget()
         local closestTarget = nil
         local shortestDistance = math.huge
 
         for _, otherPlayer in pairs(game.Players:GetPlayers()) do
-            if otherPlayer ~= player and otherPlayer.Team ~= player.Team and otherPlayer.Character and otherPlayer.Character:FindFirstChild(config.TargetPart) then
+            if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild(config.TargetPart) then
                 local targetPos = otherPlayer.Character[config.TargetPart].Position
                 local distance = (targetPos - player.Character.Head.Position).magnitude
 
-                -- Filter out targets that are too far away or not visible
-                if distance < shortestDistance and isTargetVisible(otherPlayer) then
+                -- Check if the target is on the enemy team
+                local isEnemy = config.TeamCheck and otherPlayer.Team ~= player.Team
+
+                if distance < shortestDistance and (not config.TeamCheck or isEnemy) then
                     shortestDistance = distance
                     closestTarget = otherPlayer
                 end
@@ -148,77 +205,48 @@ local function aimAndShoot()
         return closestTarget
     end
 
-    -- Function to auto-shoot the target (if enabled)
-    local function autoShoot(target)
-        if config.AutoShootEnabled and target then
-            local humanoid = target.Parent:FindFirstChild("Humanoid")
-            if humanoid and humanoid.Health > 0 then
-                humanoid:TakeDamage(50)  -- Set the damage amount
-            end
-        end
-    end
-
-    -- Apply aim assist for smoother aiming
-    local function applyAimAssist(targetPosition)
-        local aimAssistStrength = config.AimAssistStrength
-        return camera.CFrame.Position:Lerp(targetPosition, aimAssistStrength)
-    end
-
-    -- Highlight the target with a visual indicator (if enabled)
-    local function highlightTarget(target)
-        if config.HighlightTarget and target and target.Character then
-            for _, part in pairs(target.Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.BrickColor = BrickColor.new("Bright red")  -- Change the target's color to red
-                end
-            end
-        end
-    end
-
-    -- Main loop to continuously check for targets and aim
+    -- Main loop for aiming and shooting
     while true do
         local closestTarget = getClosestTarget()
 
         if closestTarget and closestTarget.Character and closestTarget.Character:FindFirstChild(config.TargetPart) then
-            local predictedPosition = predictPosition(closestTarget)
-            local aimPos = applyAimAssist(predictedPosition)  -- Aim assist for smoother tracking
-
-            -- Adjust camera to aim at the predicted position
-            camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos)
-
-            highlightTarget(closestTarget)  -- Highlight the target
-
-            -- Auto-shoot at the target
-            autoShoot(closestTarget.Character[config.TargetPart])
+            if isTargetVisible(closestTarget) then -- Check visibility
+                local predictedPosition = predictPosition(closestTarget)
+                local aimPos = aimAssist(predictedPosition, camera.CFrame.Position) -- Aim assist
+                camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos) -- Adjust camera to aim at predicted position
+                highlightTarget(closestTarget) -- Highlight the target visually
+                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot when aim is locked
+                applyFakeLag() -- Apply fake lag to confuse other players
+            end
         end
 
-        wait(0.02)  -- Short delay for optimization
+        wait(0.01) -- Short delay for optimization
     end
 end
 
--- Function to apply fake lag to confuse opponents
-local function applyFakeLag()
-    if config.FakeLagEnabled then
-        local player = game.Players.LocalPlayer
-        local originalPosition = player.Character.HumanoidRootPart.Position
-        local fakeLagDuration = 0.3  -- Duration of fake lag
-
-        -- Fake lag by temporarily shifting the player's position
-        wait(fakeLagDuration)
-        player.Character.HumanoidRootPart.Position = originalPosition
-    end
-end
-
--- GUI Button to enable the Aimbot (for mobile compatibility)
+-- Button for AimBot (Mobile Compatible)
 AddButton(Main, {
-    Name = "Aimbot",
+    Name = "AimBot",
     Callback = function()
+        local config = {
+            Fov = 180,
+            MaxTransparency = 0.1,
+            Smoothness = 0.1,
+            AimAssistStrength = 0.7, -- Increased aim assist strength for better accuracy
+            TargetPart = "Head",
+            TeamCheck = true, -- Enable team check
+            WallCheck = true,
+            MaxDistanceEnabled = false,
+            MaxDistance = 1500,
+            FovColor = Color3.fromRGB(102, 45, 145),
+            ProjectileSpeed = 1000 -- Projectile speed for prediction
+        }
+
         loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
         wait(0.1)
-        l:Notify("Script Load!", "AimBot", 3)
+        l:Notify("Script Loaded!", "AimBot", 3)
 
-        aimAndShoot()  -- Start the main aim and shoot function
-        applyFakeLag()  -- Apply fake lag for confusion
+        aimAndShoot(config) -- Call the aim and shoot function with the configuration
     end
 })
 
