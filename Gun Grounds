@@ -257,6 +257,8 @@ AddButton(Main, {
     Name = "Esp",
     Callback = function()
     
+    l:Notify("Visual Script Load !", "ESP 👽", 3)
+    
     -- ESP HIGHLIGHT 
     
         local FillColor = Color3.fromRGB(150, 255, 150) -- Even brighter green for close range
@@ -377,7 +379,6 @@ while true do
     applyESP() -- Apply ESP to new weapons
     wait(1) -- Update every second
 end
-
-        l:Notify("Visual Script Load !", "ESP 👽", 3)
+        
     end
 })
