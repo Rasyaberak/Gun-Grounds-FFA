@@ -96,33 +96,8 @@ local function aimAndShoot(config)
     local player = game.Players.LocalPlayer
     local camera = game.Workspace.CurrentCamera
     local targetPlayer = nil
-    local lastMissed = false
 
-    -- Highlight target for visibility
-    local function highlightTarget(target)
-        if config.HighlightTarget and target.Character then
-            for _, part in pairs(target.Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Transparency = config.TargetTransparency
-                    part.BrickColor = BrickColor.new(config.HighlightColor)
-                end
-            end
-        end
-    end
-
-    -- Remove highlight when target is lost
-    local function removeHighlight(target)
-        if config.HighlightTarget and target and target.Character then
-            for _, part in pairs(target.Character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.Transparency = 0 -- Reset transparency
-                    part.BrickColor = BrickColor.new("White") -- Reset color
-                end
-            end
-        end
-    end
-
-    -- Predict the position for a moving target (includes handling for fidgety players)
+    -- Prediction for moving targets
     local function predictPosition(target)
         local targetPart = target.Character[config.TargetPart]
         local targetVelocity = target.Character.HumanoidRootPart.Velocity
@@ -130,91 +105,119 @@ local function aimAndShoot(config)
         return targetPart.Position + targetVelocity * predictionTime
     end
 
-    -- Check if the target is visible or behind a wall
-    local function isTargetVisibleOrBehindWall(target)
+    -- Check if the target is visible (considering walls)
+    local function isTargetVisible(target)
         local targetPosition = target.Character[config.TargetPart].Position
         local ray = Ray.new(camera.CFrame.Position, (targetPosition - camera.CFrame.Position).unit * 100)
         local hit, position = game.Workspace:FindPartOnRay(ray, player.Character)
 
-        -- Allow wall penetration if WallPenetration is enabled
-        if hit and not hit:IsDescendantOf(target.Character) and config.WallPenetration then
-            return true
-        end
-
         return hit == nil or hit:IsDescendantOf(target.Character)
     end
 
-    -- Auto-correct the aim if the target is missed
-    local function autoCorrectAim(target)
-        if lastMissed then
-            local targetPos = target.Character[config.TargetPart].Position
-            camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
-            lastMissed = false
-        end
-    end
-
-    -- Aim assist with custom strength and aim correction after a miss
+    -- Aim assist for smoother aiming towards target
     local function aimAssist(targetPos, currentPos)
         local aimStrength = config.AimAssistStrength
-        if lastMissed then
-            return targetPos
-        else
-            return currentPos:Lerp(targetPos, aimStrength)
+        return currentPos:Lerp(targetPos, aimStrength)
+    end
+
+    -- Function to confuse the target player
+    local function makePlayerConfused(targetPlayer)
+        if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character:FindFirstChild("Humanoid") then
+            return
+        end
+
+        local humanoid = targetPlayer.Character.Humanoid
+        local playerCamera = game.Workspace.CurrentCamera
+
+        -- Flip controls to confuse movement
+        humanoid.WalkSpeed = -humanoid.WalkSpeed
+        wait(1.5)
+        humanoid.WalkSpeed = -humanoid.WalkSpeed
+
+        -- Random camera movements for disorientation
+        for i = 1, 5 do
+            local randomRotation = math.random(-90, 90)
+            playerCamera.CFrame = playerCamera.CFrame * CFrame.Angles(math.rad(randomRotation), 0, 0)
+            wait(0.1)
+        end
+
+        -- Random teleportation to nearby positions
+        for i = 1, 3 do
+            local randomOffset = Vector3.new(math.random(-5, 5), 0, math.random(-5, 5))
+            local newPosition = humanoid.Parent.PrimaryPart.Position + randomOffset
+            humanoid.Parent:SetPrimaryPartCFrame(CFrame.new(newPosition))
+            wait(0.3)
         end
     end
 
-    -- Auto-reload function
-    local function autoReload()
-        local tool = player.Backpack:FindFirstChildOfClass("Tool")
-        if tool and tool:FindFirstChild("Ammo") then
-            if tool.Ammo.Value <= 0 then
-                tool:Activate() -- Automatically reload if out of ammo
-                wait(1) -- Wait for reload
-            end
-        end
-    end
-
-    -- Auto-shoot function with higher damage
+    -- Auto-shoot function with confusion effect
     local function autoShoot(target)
         if target then
             local humanoid = target.Parent:FindFirstChild("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                autoReload() -- Auto-reload if needed
-                humanoid:TakeDamage(50) -- Increase the damage per shot
+                humanoid:TakeDamage(75) -- Increased damage to make shots more powerful
+                -- Trigger confusion effect on the target player
+                local targetPlayer = game.Players:GetPlayerFromCharacter(target.Parent)
+                makePlayerConfused(targetPlayer)
+            end
+        end
+    end
 
-                local ray = Ray.new(camera.CFrame.Position, (target.Character[config.TargetPart].Position - camera.CFrame.Position).unit * 100)
-                local hit, position = game.Workspace:FindPartOnRay(ray, player.Character)
-                if hit ~= nil and not hit:IsDescendantOf(target.Character) then
-                    lastMissed = true -- Mark that the shot missed
-                else
-                    lastMissed = false -- No miss, aim was correct
+    -- Fake Lag Implementation
+    local function applyFakeLag()
+        local originalPosition = player.Character.HumanoidRootPart.Position
+        local fakeLagDuration = 0.2 -- Lag duration in seconds
+        wait(fakeLagDuration)
+        player.Character.HumanoidRootPart.Position = originalPosition
+    end
+
+    -- Highlight the target with a visual indicator
+    local function highlightTarget(target)
+        if target and target.Character then
+            for _, part in pairs(target.Character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.BrickColor = BrickColor.new("Bright red") -- Change the target's color to red
                 end
             end
         end
     end
 
-    -- Main aim loop
+    -- Main function to get closest valid target
+    local function getClosestTarget()
+        local closestTarget = nil
+        local shortestDistance = math.huge
+
+        for _, otherPlayer in pairs(game.Players:GetPlayers()) do
+            if otherPlayer ~= player and otherPlayer.Character and otherPlayer.Character:FindFirstChild(config.TargetPart) then
+                local targetPos = otherPlayer.Character[config.TargetPart].Position
+                local distance = (targetPos - player.Character.Head.Position).magnitude
+
+                if distance < shortestDistance and (not config.TeamCheck or otherPlayer.Team ~= player.Team) then
+                    shortestDistance = distance
+                    closestTarget = otherPlayer
+                end
+            end
+        end
+
+        return closestTarget
+    end
+
+    -- Main loop for aiming and shooting
     while true do
         local closestTarget = getClosestTarget()
 
         if closestTarget and closestTarget.Character and closestTarget.Character:FindFirstChild(config.TargetPart) then
-            if isTargetVisibleOrBehindWall(closestTarget) then
-                highlightTarget(closestTarget) -- Highlight target
-                local targetPos = predictPosition(closestTarget) -- Predict target's position
-                autoCorrectAim(closestTarget) -- Auto-correct aim if needed
-
-                local aimPos = aimAssist(targetPos, camera.CFrame.Position) -- Aim assist
-                camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos) -- Adjust camera direction
-
-                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot at the target
-            else
-                removeHighlight(closestTarget) -- Remove highlight if target lost
+            if isTargetVisible(closestTarget) then -- Check visibility
+                local predictedPosition = predictPosition(closestTarget)
+                local aimPos = aimAssist(predictedPosition, camera.CFrame.Position) -- Aim assist
+                camera.CFrame = CFrame.new(camera.CFrame.Position, aimPos) -- Adjust camera to aim at predicted position
+                highlightTarget(closestTarget) -- Highlight the target visually
+                autoShoot(closestTarget.Character[config.TargetPart]) -- Auto-shoot when aim is locked
+                applyFakeLag() -- Apply fake lag to confuse other players
             end
-        else
-            removeHighlight(closestTarget) -- Remove highlight if no valid target
         end
 
-        wait(config.FakeLagAmount or 0.01) -- Add delay for fake lag
+        wait(0.01) -- Short delay for optimization
     end
 end
 
@@ -225,30 +228,22 @@ AddButton(Main, {
         local config = {
             Fov = 180,
             MaxTransparency = 0.1,
-            Smoothness = 0.1, -- For smoother aim
-            AimAssistStrength = 0.5, -- Aim assist strength
+            Smoothness = 0.1,
+            AimAssistStrength = 0.7, -- Increased aim assist strength for better accuracy
             TargetPart = "Head",
             TeamCheck = false,
-            WallPenetration = true, -- Enable shooting through walls
-            FidgetTracking = true, -- Improve tracking for fidgety players
-            HighlightTarget = true,
-            TargetTransparency = 0.5, -- Target highlight transparency
-            HighlightColor = Color3.fromRGB(255, 0, 0), -- Red highlight color
-            LineOfSight = true,
-            LineColor = Color3.fromRGB(0, 255, 0), -- Green line of sight color
-            FakeLag = true,
-            FakeLagAmount = 0.2, -- Simulated lag
+            WallCheck = true,
             MaxDistanceEnabled = false,
             MaxDistance = 1500,
             FovColor = Color3.fromRGB(102, 45, 145),
-            ProjectileSpeed = 1000 -- Projectile speed for target prediction
+            ProjectileSpeed = 1000 -- Projectile speed for prediction
         }
 
         loadstring(game:HttpGet("https://raw.githubusercontent.com/dqtixz/aimbot/main/Projeto%20LKA%20x%20F%20Hub", true))()
         wait(0.1)
         l:Notify("Script Loaded!", "AimBot", 3)
 
-        aimAndShoot(config) -- Call aim and shoot function with the provided config
+        aimAndShoot(config) -- Call the aim and shoot function with the configuration
     end
 })
 
@@ -257,10 +252,7 @@ AddButton(Main, {
     Name = "Esp",
     Callback = function()
     
-    l:Notify("Visual Script Load !", "ESP 👽", 3)
-    
     -- ESP HIGHLIGHT 
-    
         local FillColor = Color3.fromRGB(150, 255, 150) -- Even brighter green for close range
         local DepthMode = "AlwaysOnTop"
         local FillTransparency = 0.5
@@ -341,44 +333,8 @@ AddButton(Main, {
             end
         end)
         
-        -- ESP WEAPON RAINBOW ( maybe )
+        -- ESP LINE
         
-local function createESP(item)
-    -- Create a new BillboardGui for the ESP
-    local billboard = Instance.new("BillboardGui")
-    billboard.Name = "ESP"
-    billboard.AlwaysOnTop = true -- Makes sure it renders on top of everything
-    billboard.Size = UDim2.new(0, 200, 0, 50) -- Size of the ESP box
-    billboard.StudsOffset = Vector3.new(0, 2, 0) -- Adjusts its position
-    billboard.Adornee = item -- Set the ESP to attach to the item (weapon)
-    
-    -- Add a Frame to the BillboardGui (this is the visible box)
-    local frame = Instance.new("Frame", billboard)
-    frame.Size = UDim2.new(1, 0, 1, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(math.random(255), math.random(255), math.random(255)) -- Random bright color
-    frame.BackgroundTransparency = 0.5 -- Slight transparency for effect
-    
-    -- Parent the ESP BillboardGui to the item (weapon)
-    billboard.Parent = item
-end
-
--- Function to apply ESP to all weapons in the game
-local function applyESP()
-    for _, object in pairs(workspace:GetChildren()) do
-        if object:IsA("Tool") and object.Name == "Weapon" then
-            -- Check if the weapon already has ESP
-            if not object:FindFirstChild("ESP") then
-                createESP(object)
-            end
-        end
-    end
-end
-
--- Loop to continuously update the ESP (in case new weapons spawn)
-while true do
-    applyESP() -- Apply ESP to new weapons
-    wait(1) -- Update every second
-end
-        
+        l:Notify("Visual Script Load !", "ESP 👽", 3)
     end
 })
